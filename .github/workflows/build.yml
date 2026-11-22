@@ -69,7 +69,10 @@ jobs:
         run: |
           set -e
           mkdir -p dist
-          rm -f dist/*.jar
+          # Only replace the Fabric/Quilt jars this job produced; the loader jobs publish
+          # their own jars into the same folder from other runners.
+          rm -f dist/bedrock-shaders-1.0.0.jar dist/bedrock-shaders-1.0.0-sources.jar \
+                dist/bedrock-shaders-quilt-*.jar
           cp build/libs/*.jar dist/
           if [ -z "$(git status --porcelain dist)" ]; then
             echo "jar unchanged"
@@ -147,5 +150,25 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bedrock-shaders-${{ matrix.loader }}
+          # upload-artifact resolves paths against the workspace root, not
+          # working-directory, so this must stay repository-relative.
           path: loaders/${{ matrix.loader }}/build/libs/*.jar
-          if-no-files-found: warn
+          if-no-files-found: error
+
+      # Mirror the Fabric job's dist/ publishing so all four jars are downloadable from
+      # the repository itself (blob storage is unreachable in the maintainer's sandbox).
+      - name: Publish ${{ matrix.loader }} jar to dist/
+        if: "success() && github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'ci: publish')"
+        run: |
+          set -e
+          mkdir -p dist
+          cp loaders/${{ matrix.loader }}/build/libs/*.jar dist/ 2>/dev/null || {
+            echo "no jar produced"; exit 1; }
+          cd ../..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist
+          git diff --cached --quiet && { echo "jar unchanged"; exit 0; }
+          git commit -m "ci: publish ${{ matrix.loader }} jar [skip ci]"
+          git pull --rebase --autostash
+          git push
