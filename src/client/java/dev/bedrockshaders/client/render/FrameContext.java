@@ -3,9 +3,11 @@ package dev.bedrockshaders.client.render;
 import dev.bedrockshaders.bedrock.AtmosphereSettings;
 import dev.bedrockshaders.bedrock.ColorGradingSettings;
 import dev.bedrockshaders.bedrock.FogSettings;
+import dev.bedrockshaders.bedrock.WaterSettings;
 import dev.bedrockshaders.bedrock.LightingSettings;
 import dev.bedrockshaders.client.ConfigManager;
 import dev.bedrockshaders.client.assets.BedrockAssetLibrary;
+import dev.bedrockshaders.client.pack.PackRegistry;
 import dev.bedrockshaders.util.ColorUtil;
 import dev.bedrockshaders.util.Mth;
 import net.minecraft.client.MinecraftClient;
@@ -71,6 +73,8 @@ public final class FrameContext {
     private final float[] fogColor = new float[] {0.55F, 0.68F, 0.86F};
     private final float[] waterFogColor = new float[] {0.09F, 0.29F, 0.44F};
     private final float[] waterSurfaceColor = new float[] {0.12F, 0.42F, 0.62F};
+    private String biomeId = "";
+    private String activePackName = "";
     private float waterTransparency = 0.65F;
     private float fogDensity = 1.0F;
     private float fogStart;
@@ -139,6 +143,7 @@ public final class FrameContext {
         BlockPos cameraBlockPos = BlockPos.ofFloored(cameraX, cameraY, cameraZ);
         RegistryEntry<Biome> biomeEntry = world.getBiome(cameraBlockPos);
         fogId = BiomeMapper.fogIdFor(world, biomeEntry, cameraBlockPos);
+        biomeId = biomeEntry.getKey().map(key -> key.getValue().toString()).orElse("");
         BedrockAssetLibrary assets = BedrockAssetLibrary.get();
         assets.ensureLoaded();
         fogSettings = assets.fog(fogId);
@@ -222,6 +227,23 @@ public final class FrameContext {
             System.arraycopy(fogSettings.waterColor, 0, waterSurfaceColor, 0, 3);
         }
         waterTransparency = Mth.clamp(0.35F + 0.35F * (fogSettings.hasWater ? 1.0F : 0.6F), 0.2F, 0.85F);
+        // Bedrock's biomes_client.json describes water per biome and is the authoritative
+        // source when an imported pack provides it; the fog setting is only the fallback.
+        activePackName = PackRegistry.get().activePackForBiome(biomeId);
+        // litColors() runs outside the frame setup, so the library is fetched directly.
+        WaterSettings waterTable = BedrockAssetLibrary.get().water();
+        if (!waterTable.isEmpty()) {
+            WaterSettings.Entry waterEntry = waterTable.entryFor(biomeId);
+            if (waterEntry.hasFogColor) {
+                System.arraycopy(waterEntry.fogColor, 0, waterFogColor, 0, 3);
+            }
+            if (waterEntry.hasSurfaceColor) {
+                System.arraycopy(waterEntry.surfaceColor, 0, waterSurfaceColor, 0, 3);
+            }
+            if (waterEntry.hasTransparency) {
+                waterTransparency = Mth.clamp(waterEntry.transparency, 0.05F, 1.0F);
+            }
+        }
         if (nether) {
             skyZenith[0] = 0.11F; skyZenith[1] = 0.02F; skyZenith[2] = 0.02F;
             skyHorizon[0] = 0.22F; skyHorizon[1] = 0.05F; skyHorizon[2] = 0.03F;
@@ -317,6 +339,12 @@ public final class FrameContext {
     public float fogStart() { return fogStart; }
     public float fogEnd() { return fogEnd; }
     public String fogId() { return fogId; }
+
+    /** Java biome id (e.g. {@code minecraft:plains}) used for the water table lookup. */
+    public String biomeId() { return biomeId; }
+
+    /** Display name of the imported Bedrock pack providing this frame's data, if any. */
+    public String activePackName() { return activePackName; }
     public FogSettings fogSettings() { return fogSettings; }
     public LightingSettings lightingSettings() { return lightingSettings; }
     public AtmosphereSettings atmosphereSettings() { return atmosphereSettings; }

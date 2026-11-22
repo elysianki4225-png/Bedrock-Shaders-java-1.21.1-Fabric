@@ -89,7 +89,9 @@ public final class BedrockShadersCommand {
                                     + " fog=" + frame.fogId()
                                     + " sun=" + String.format("%.2f", frame.sunIntensity())
                                     + " moon=" + String.format("%.2f", frame.moonIntensity())
-                                    + " time=" + String.format("%.2f", frame.sunAngle())));
+                                    + " time=" + String.format("%.2f", frame.sunAngle())
+                                    + " biome=" + frame.biomeId()
+                                    + " pack=" + (frame.activePackName().isEmpty() ? "builtin" : frame.activePackName())));
                     return 1;
                 }))
                 .then(literal("fog").executes(ctx -> {
@@ -100,6 +102,35 @@ public final class BedrockShadersCommand {
                                     + " air=[" + fog.airStart + ", " + fog.airEnd + "]"
                                     + " water=[" + fog.waterStart + ", " + fog.waterEnd + "]"
                                     + " volumetric=" + fog.volumetricAirMaxDensity));
+                    return 1;
+                }))
+                .then(literal("import").executes(ctx -> {
+                    var registry = dev.bedrockshaders.client.pack.PackRegistry.get();
+                    registry.ensureFolders();
+                    var results = registry.importPending();
+                    dev.bedrockshaders.client.pack.ImportedPackActivator.invalidate();
+                    dev.bedrockshaders.client.pack.ImportedPackActivator.reload(MinecraftClient.getInstance());
+                    if (results.isEmpty()) {
+                        ctx.getSource().sendFeedback(Text.translatable("bedrock_shaders.command.import.none",
+                                registry.importFolder().toString()));
+                    } else {
+                        int ok = 0;
+                        for (var result : results) {
+                            if (result.success()) {
+                                ok++;
+                                ctx.getSource().sendFeedback(Text.literal("  + " + result.message()));
+                            } else {
+                                ctx.getSource().sendFeedback(Text.literal("  ! " + result.message()));
+                            }
+                        }
+                        ctx.getSource().sendFeedback(Text.translatable("bedrock_shaders.command.import.done",
+                                ok, results.size() - ok));
+                    }
+                    return results.size();
+                }))
+                .then(literal("packs").executes(ctx -> {
+                    MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance()
+                            .setScreen(new dev.bedrockshaders.client.gui.BedrockPacksScreen(null)));
                     return 1;
                 }))
                 .then(literal("effects").executes(ctx -> {

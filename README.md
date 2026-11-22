@@ -14,13 +14,45 @@ Built jar: [`dist/bedrock-shaders-1.0.0.jar`](dist/bedrock-shaders-1.0.0.jar) (r
 3. Launch. The mod generates its runtime shader pack into `config/bedrock-shaders/pack`
    and enables it automatically.
 
+Languages: English and 简体中文 (`assets/bedrock_shaders/lang/{en_us,zh_cn}.json`, key-identical).
+
 | Key | Action |
 | --- | --- |
 | `F9` | Open the Bedrock Shaders settings screen |
 | `F10` | Toggle the pipeline on/off |
 
 Commands: `/bedrock menu`, `/bedrock toggle`, `/bedrock preset <potato|low|balanced|high|ultra>`,
-`/bedrock reload`, `/bedrock fog`, `/bedrock effects`, `/bedrock debug`.
+`/bedrock packs`, `/bedrock import`, `/bedrock reload`, `/bedrock fog`, `/bedrock effects`,
+`/bedrock debug`.
+
+## Installing Bedrock shader packs (.mcpack)
+
+Like Iris, the mod creates an instance folder on first launch:
+
+```
+.minecraft/bedrock-shaders/packs/      <- drop .mcpack / .mcaddon / .zip here
+```
+
+Then either restart, run `/bedrock import`, or press **Rescan folder** in the pack manager
+(`F9` → **Packs** → *Bedrock Pack Manager*). For each archive the mod:
+
+1. unpacks nested archives (a `.mcpack` inside a `.mcaddon`, or an `.mcpack` inside an
+   `.mcpack`, is followed up to 4 levels deep),
+2. keeps only Bedrock rendering data — `*_fog_setting.json`, `*_lighting.json`,
+   `*_atmospherics.json`, `*_color_grading.json` and `biomes_client.json` — and drops
+   textures, models, sounds and manifests,
+3. writes a valid Java resource pack to
+   `.minecraft/resourcepacks/bedrock_shaders_<name>/` with a generated `pack.mcmeta`,
+4. enables it in the resource-pack stack (**appended last**, so any pack you placed above
+   still wins) and reloads resources — no restart needed.
+
+Per-pack state is tracked in `bedrock-shaders/index.json`, so unchanged archives are not
+re-imported and deleted packs are unregistered. The manager screen can toggle, delete and
+open the folder, and it links to vanilla's own resource-pack screen.
+
+**What is not supported:** binary RenderDragon shaders (`*.material.bin`) — those are
+compiled pipeline binaries with no Java Edition equivalent. Only the data-driven Deferred
+Rendering JSON is imported.
 
 ## How it works
 
@@ -56,6 +88,7 @@ cd verification && npm install
 node validate_shaders.mjs        # compiles every core + post-processing program with Khronos glslang
 python3 ../verification/validate_pack.py     # generated pack obeys 1.21.1 core-shader rules
 python3 ../verification/validate_assets.py   # every Bedrock JSON parses and is in range
+python3 ../verification/test_importer.py     # .mcpack layout rules, nested archives, lang parity
 ```
 
 The pack validator exists because a bad property in a core-shader JSON aborts the whole
@@ -67,7 +100,8 @@ samplers a program declares are exactly those the vanilla render layer binds.
 
 ```
 shadersrc/core|include      Bedrock GLSL (authored, #version 150)
-src/main/java               common: config model, Bedrock asset model (curves, lighting, fog)
+src/main/java               common: config model, Bedrock asset model (curves, lighting, fog, water)
+src/client/java/.../pack    .mcpack importer, pack registry, resource-pack activation
 src/client/java             client: pipeline, uniforms, mixins, GUI, command, asset library
 src/main/resources/assets    generated GLSL + Bedrock JSON samples + lang + icon
 verification/               offline shader/asset/pack validators, CI entry points

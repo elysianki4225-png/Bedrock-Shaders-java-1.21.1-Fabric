@@ -32,6 +32,7 @@ public final class BedrockShadersScreen extends Screen {
         ATMOSPHERE("bedrock_shaders.page.atmosphere"),
         WATER("bedrock_shaders.page.water"),
         EFFECTS("bedrock_shaders.page.effects"),
+        PACKS("bedrock_shaders.page.packs"),
         GRADE("bedrock_shaders.page.grade"),
         SYSTEM("bedrock_shaders.page.system");
 
@@ -183,6 +184,28 @@ public final class BedrockShadersScreen extends Screen {
                             });
                         }).dimensions(centerX - 100, y, 200, ROW_HEIGHT).build());
             }
+            case PACKS -> {
+                int y = top;
+                addDrawableChild(ButtonWidget.builder(Text.translatable("bedrock_shaders.action.open_packs"),
+                        button -> MinecraftClient.getInstance().setScreen(new BedrockPacksScreen(this)))
+                        .dimensions(centerX - 100, y, 200, ROW_HEIGHT).build());
+                y += ROW_HEIGHT + ROW_GAP;
+                addDrawableChild(toggle(centerX - 100, y, 200, "bedrock_shaders.option.auto_import",
+                        config.autoImportPacks, value -> config.autoImportPacks = value));
+                y += ROW_HEIGHT + ROW_GAP;
+                int imported = dev.bedrockshaders.client.pack.PackRegistry.get().imported().size();
+                addDrawableChild(ButtonWidget.builder(
+                                Text.translatable("bedrock_shaders.action.import_now", imported),
+                                button -> {
+                                    var registry = dev.bedrockshaders.client.pack.PackRegistry.get();
+                                    registry.ensureFolders();
+                                    registry.importPending();
+                                    dev.bedrockshaders.client.pack.ImportedPackActivator.invalidate();
+                                    dev.bedrockshaders.client.pack.ImportedPackActivator.reload(MinecraftClient.getInstance());
+                                    rebuild();
+                                })
+                        .dimensions(centerX - 100, y, 200, ROW_HEIGHT).build());
+            }
             case SYSTEM -> {
                 int y = top;
                 addDrawableChild(ButtonWidget.builder(Text.translatable("bedrock_shaders.action.reload_shaders"),
@@ -232,9 +255,10 @@ public final class BedrockShadersScreen extends Screen {
         BedrockPipeline pipeline = BedrockPipeline.get();
         FrameContext frame = FrameContext.get();
         BedrockAssetLibrary assets = BedrockAssetLibrary.get();
-        String status = "Pipeline: " + (pipeline.isReady() ? "ACTIVE" : "VANILLA FALLBACK")
-                + "   |   Bedrock assets: " + assets.parsedFiles() + " files"
-                + "   |   Biome: " + frame.fogId();
+        String status = Text.translatable("bedrock_shaders.status.line",
+                pipeline.isReady() ? Text.translatable("bedrock_shaders.status.active")
+                        : Text.translatable("bedrock_shaders.status.fallback"),
+                assets.parsedFiles(), frame.fogId()).getString();
         context.drawCenteredTextWithShadow(textRenderer, Text.literal(status), width / 2, height - 44, 0x9BB7D4);
         if (ConfigManager.get().isDirty()) {
             context.drawTextWithShadow(textRenderer,
