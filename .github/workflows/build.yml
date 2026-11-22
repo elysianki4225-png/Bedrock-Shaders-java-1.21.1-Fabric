@@ -113,6 +113,7 @@ jobs:
       - name: Build ${{ matrix.loader }}
         id: gradle
         continue-on-error: true
+        working-directory: loaders/${{ matrix.loader }}
         run: |
           set +e
           chmod +x ../../gradlew
@@ -128,6 +129,7 @@ jobs:
       # own diagnostics as an issue: that is the only channel back to the maintainer.
       - name: Publish ${{ matrix.loader }} diagnostics
         if: steps.gradle.outcome == 'failure'
+        working-directory: loaders/${{ matrix.loader }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -159,6 +161,7 @@ jobs:
 
       - name: Verify ${{ matrix.loader }} jar exists
         if: success()
+        working-directory: loaders/${{ matrix.loader }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -184,6 +187,7 @@ jobs:
       # the repository itself (blob storage is unreachable in the maintainer's sandbox).
       - name: Publish ${{ matrix.loader }} jar to dist/
         if: "success() && github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'ci: publish')"
+        working-directory: loaders/${{ matrix.loader }}
         run: |
           set -e
           mkdir -p dist
