@@ -55,10 +55,10 @@ jobs:
           SHA: ${{ github.sha }}
         run: python3 verification/report_failure.py
 
-      - name: Upload mod jar
+      - name: Upload mod jars (Fabric + Quilt)
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-shaders-jar
+          name: bedrock-shaders-jars-fabric-quilt
           path: build/libs/*.jar
           if-no-files-found: error
 
@@ -80,3 +80,53 @@ jobs:
           git add dist
           git commit -m "ci: publish jar [skip ci]"
           git push
+
+  # Forge and NeoForge are independent Gradle builds (loaders/<loader>) so their
+  # toolchains never leak into the Fabric build. They are compiled here, which is the
+  # only place the official-mapped port is actually type-checked.
+  loader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - loader: neoforge
+            task: build
+          - loader: forge
+            task: build
+    name: build (${{ matrix.loader }})
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build ${{ matrix.loader }}
+        id: gradle
+        working-directory: loaders/${{ matrix.loader }}
+        run: |
+          chmod +x ../../gradlew
+          set -o pipefail
+          ../../gradlew ${{ matrix.task }} --stacktrace --console=plain 2>&1 | tee build.log
+
+      - name: Publish failure report
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: python3 ../../verification/report_failure.py ${{ matrix.loader }}
+
+      - name: Upload ${{ matrix.loader }} jar
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-shaders-${{ matrix.loader }}
+          path: loaders/${{ matrix.loader }}/build/libs/*.jar
+          if-no-files-found: warn
