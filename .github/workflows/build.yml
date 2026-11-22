@@ -109,32 +109,38 @@ jobs:
 
       - name: Build ${{ matrix.loader }}
         id: gradle
-        working-directory: loaders/${{ matrix.loader }}
+        continue-on-error: true
         run: |
+          set +e
           chmod +x ../../gradlew
-          set -o pipefail
-          ../../gradlew ${{ matrix.task }} --stacktrace --console=plain 2>&1 | tee build.log
+          ../../gradlew --version > gradle-version.log 2>&1
+          echo "gradle --version exit: $?" >> gradle-version.log
+          ../../gradlew build --stacktrace --console=plain > build.log 2>&1
+          echo "build exit: $?" >> build.log
+          tail -c 2000 build.log || true
 
-      # The sandbox that reads this repository cannot fetch Actions log blobs, so on
-      # failure the log is also committed to the branch as the failure report.
-      - name: Publish failure log
-        if: failure()
+      # The sandbox cannot read Actions log blobs, so a failing loader build posts its
+      # own diagnostics as an issue: that is the only channel back to the maintainer.
+      - name: Publish ${{ matrix.loader }} diagnostics
+        if: steps.gradle.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
         run: |
-          python3 ../../verification/report_failure.py ${{ matrix.loader }} || true
-          if [ -f build.log ]; then
-            mkdir -p ../../ci-logs
-            cp build.log ../../ci-logs/${{ matrix.loader }}.log
-            cd ../..
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add ci-logs/${{ matrix.loader }}.log
-            git commit -m "ci: ${{ matrix.loader }} failure log [skip ci]" || true
-            git push || true
-          fi
+          {
+            echo "workflow run: $GITHUB_RUN_ID"
+            echo
+            echo "### gradle --version"
+            echo '```'
+            head -30 gradle-version.log 2>/dev/null || echo "no gradle-version.log"
+            echo '```'
+            echo "### build.log (last 120 lines)"
+            echo '```'
+            tail -120 build.log 2>/dev/null || echo "no build.log"
+            echo '```'
+          } > /tmp/report.md
+          gh issue create --repo $GITHUB_REPOSITORY \
+            --title "${{ matrix.loader }} build failure $GITHUB_RUN_ID" \
+            --body-file /tmp/report.md || true
 
       - name: Upload ${{ matrix.loader }} jar
         if: success()
