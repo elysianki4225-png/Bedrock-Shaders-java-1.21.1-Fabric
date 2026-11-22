@@ -76,6 +76,11 @@ public final class BedrockConfig {
         return new BedrockConfig();
     }
 
+    /** True when any colour-grading / tone-mapping step should run. */
+    public boolean composite() {
+        return tonemap || colorGrading || exposure != 1.0F || saturation != 1.0F || contrast != 1.0F;
+    }
+
     public QualityPreset qualityPreset() {
         return QualityPreset.values()[Math.max(0, Math.min(preset, QualityPreset.values().length - 1))];
     }

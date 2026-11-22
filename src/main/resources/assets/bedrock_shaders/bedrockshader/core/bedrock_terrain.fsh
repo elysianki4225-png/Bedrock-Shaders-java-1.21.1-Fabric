@@ -1,5 +1,9 @@
 #version 400
 
+#moj_import <bedrock_global.glsl>
+#moj_import <common_lighting.glsl>
+
+
 uniform sampler2D Sampler0;
 uniform float BedrockMaterialGloss;
 
@@ -18,7 +22,8 @@ void main() {
         discard;
     }
     vec3 albedo = texel.rgb * ColorModulator.rgb;
-    vec3 lit = bs_shade_surface(albedo, worldNormal, vertexColor, lightMapColor, BedrockMaterialGloss);
+    vec3 normal = normalize(worldNormal * 2.0 - 1.0);
+    vec3 lit = bs_shade_surface(albedo, normal, vertexColor, lightMapColor, BedrockMaterialGloss);
 
     if (BedrockWaterline > 0.01) {
         float under = smoothstep(BedrockWaterSurfaceHeight - 0.1, BedrockWaterSurfaceHeight + 0.4, worldPos.y);

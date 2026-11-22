@@ -51,6 +51,21 @@ public final class ConfigManager {
         dirty = true;
     }
 
+    private boolean undoPendingOnOpen;
+
+    /** Pushes a single undo point when a settings screen opens (init() runs repeatedly). */
+    public void pushUndoOnce() {
+        if (undoPendingOnOpen) {
+            undoPendingOnOpen = false;
+            pushUndo();
+        }
+    }
+
+    /** Marks the next settings-screen open as needing an undo point. */
+    public void armUndoOnOpen() {
+        undoPendingOnOpen = true;
+    }
+
     public void pushUndo() {
         BedrockConfig copy = BedrockConfig.defaults();
         copy.copyFrom(config);

@@ -5,11 +5,8 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "WorldRendererMixin",
-    "BackgroundRendererMixin",
-    "LightmapTextureManagerMixin",
-    "FluidRendererMixin",
     "GameRendererMixin",
-    "InGameHudMixin"
+    "ShaderProgramMixin"
   ],
   "injectors": {
     "defaultRequire": 1

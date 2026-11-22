@@ -20,9 +20,9 @@ const SRC = path.join(ROOT, 'shadersrc');
 const OUT = path.join(HERE, 'out');
 
 const PROGRAMS = [
-  { name: 'terrain', vertex: 'terrain.vsh', fragment: 'terrain.fsh', shared: 'common_lighting.glsl' },
-  { name: 'water', vertex: 'bedrock_water.vsh', fragment: 'bedrock_water.fsh', helper: 'bedrock_water.glsl' },
-  { name: 'entity', vertex: 'entity.vsh', fragment: 'entity.fsh', shared: 'common_lighting.glsl' },
+  { name: 'rendertype_solid', vertex: 'bedrock_terrain.vsh', fragment: 'bedrock_terrain.fsh', shared: 'common_lighting.glsl' },
+  { name: 'rendertype_translucent', vertex: 'bedrock_translucent.vsh', fragment: 'bedrock_translucent.fsh', helper: 'bedrock_translucent.glsl' },
+  { name: 'rendertype_entity_solid', vertex: 'bedrock_entity.vsh', fragment: 'bedrock_entity.fsh', shared: 'common_lighting.glsl' },
 ];
 
 function stripVersion(text) {

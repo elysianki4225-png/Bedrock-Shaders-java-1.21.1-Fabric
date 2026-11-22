@@ -1,7 +1,9 @@
 #version 400
 
 // ---------------------------------------------------------------------------
-//  Bedrock water - all declarations and helpers used by bedrock_water.vsh/.fsh.
+//  Bedrock translucency - declarations/helpers used by bedrock_translucent.vsh/.fsh.
+//  Water, glass and ice share vanilla's rendertype_translucent program, so this
+//  shader applies Bedrock water reflections only to up-facing surfaces.
 // ---------------------------------------------------------------------------
 
 uniform sampler2D BedrockSceneSampler;

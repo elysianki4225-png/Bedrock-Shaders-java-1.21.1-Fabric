@@ -7,7 +7,7 @@
  *
  *     #moj_import <bedrock_global.glsl>
  *     #moj_import <common_lighting.glsl>
- *     #moj_import <bedrock_water.glsl>     (water program only)
+ *     #moj_import <bedrock_translucent.glsl>     (water program only)
  *
  * and writes the result to the mod's assets so the runtime pack builder can flatten
  * it with vanilla's own #moj_import rules.
@@ -37,13 +37,13 @@ function declaredUniforms(texts) {
 
 const globalSrc = fs.readFileSync(path.join(SRC, 'include', 'bedrock_global.glsl'), 'utf8');
 const sharedSrc = fs.readFileSync(path.join(SRC, 'include', 'common_lighting.glsl'), 'utf8');
-const waterSrc = fs.readFileSync(path.join(SRC, 'include', 'bedrock_water.glsl'), 'utf8');
+const waterSrc = fs.readFileSync(path.join(SRC, 'include', 'bedrock_translucent.glsl'), 'utf8');
 
 fs.mkdirSync(path.join(DEST, 'core'), { recursive: true });
 fs.mkdirSync(path.join(DEST, 'include'), { recursive: true });
 
 // Ship the includes verbatim (minus their #version line, which vanilla forbids mid-file).
-for (const name of ['bedrock_global.glsl', 'common_lighting.glsl', 'bedrock_water.glsl']) {
+for (const name of ['bedrock_global.glsl', 'common_lighting.glsl', 'bedrock_translucent.glsl']) {
   const text = fs.readFileSync(path.join(SRC, 'include', name), 'utf8')
     .split('\n')
     .filter((line) => !line.trim().startsWith('#version'))
@@ -54,7 +54,7 @@ for (const name of ['bedrock_global.glsl', 'common_lighting.glsl', 'bedrock_wate
 for (const file of fs.readdirSync(path.join(SRC, 'core'))) {
   if (!/\.(vsh|fsh)$/.test(file)) continue;
   const isWater = file.startsWith('bedrock_water');
-  const includes = isWater ? [...INCLUDES, 'bedrock_water.glsl'] : INCLUDES;
+  const includes = isWater ? [...INCLUDES, 'bedrock_translucent.glsl'] : INCLUDES;
   const provided = declaredUniforms([
     globalSrc,
     sharedSrc,

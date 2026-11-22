@@ -1,0 +1,53 @@
+{
+  "key.categories.bedrock_shaders": "Bedrock Shaders",
+  "key.bedrock_shaders.open_menu": "Open Bedrock Shaders menu",
+  "key.bedrock_shaders.toggle": "Toggle Bedrock Shaders",
+
+  "bedrock_shaders.title": "Bedrock Shaders",
+  "bedrock_shaders.hint.unsaved": "Changes saved when you close this screen",
+  "bedrock_shaders.slider": "%s: %s",
+
+  "bedrock_shaders.page.presets": "Presets",
+  "bedrock_shaders.page.atmosphere": "Atmosphere",
+  "bedrock_shaders.page.water": "Water",
+  "bedrock_shaders.page.effects": "Effects",
+  "bedrock_shaders.page.grade": "Grade",
+  "bedrock_shaders.page.system": "System",
+
+  "bedrock_shaders.preset.potato": "Potato (fastest)",
+  "bedrock_shaders.preset.low": "Low",
+  "bedrock_shaders.preset.balanced": "Balanced",
+  "bedrock_shaders.preset.high": "High",
+  "bedrock_shaders.preset.ultra": "Ultra",
+
+  "bedrock_shaders.option.enabled": "Bedrock Shaders",
+  "bedrock_shaders.option.atmosphere": "Bedrock atmosphere",
+  "bedrock_shaders.option.sky": "Replace vanilla sky",
+  "bedrock_shaders.option.clouds": "Clouds",
+  "bedrock_shaders.option.stars": "Stars",
+  "bedrock_shaders.option.fog_density": "Fog density",
+  "bedrock_shaders.option.sun_intensity": "Sun intensity",
+  "bedrock_shaders.option.water": "Bedrock water",
+  "bedrock_shaders.option.wave_strength": "Wave strength",
+  "bedrock_shaders.option.reflections": "Water reflections",
+  "bedrock_shaders.option.refraction": "Water refraction",
+  "bedrock_shaders.option.caustics": "Caustics",
+  "bedrock_shaders.option.ssao": "Ambient occlusion",
+  "bedrock_shaders.option.ssao_strength": "AO strength",
+  "bedrock_shaders.option.bloom": "Bloom",
+  "bedrock_shaders.option.bloom_strength": "Bloom strength",
+  "bedrock_shaders.option.godrays": "God rays",
+  "bedrock_shaders.option.godray_strength": "God ray strength",
+  "bedrock_shaders.option.tonemap": "Filmic tone mapping",
+  "bedrock_shaders.option.exposure": "Exposure",
+  "bedrock_shaders.option.saturation": "Saturation",
+  "bedrock_shaders.option.contrast": "Contrast",
+  "bedrock_shaders.option.debug": "Debug overlay",
+
+  "bedrock_shaders.action.reload_shaders": "Reload shaders and assets",
+  "bedrock_shaders.action.reset_grade": "Reset colour grading",
+  "bedrock_shaders.action.reset_all": "Reset all settings",
+
+  "bedrock_shaders.message.enabled": "Bedrock Shaders enabled",
+  "bedrock_shaders.message.disabled": "Bedrock Shaders disabled (vanilla rendering)"
+}
