@@ -263,7 +263,7 @@ public final class BedrockAssetLibrary {
                 bindings.putIfAbsent("minecraft:fog_" + name,
                         new Binding(path, AssetNames.LIGHTING_GLOBAL, AssetNames.ATMOSPHERE_GLOBAL, AssetNames.GRADING_GLOBAL));
             }
-        } catch (RuntimeException e) {
+        } catch (IOException | RuntimeException e) {
             BedrockShadersMod.LOGGER.warn("Could not scan for extra Bedrock fog files: {}", e.getMessage());
         }
     }
