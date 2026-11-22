@@ -1,0 +1,79 @@
+name: build
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Validate shaders (Khronos glslang)
+        run: |
+          cd verification
+          npm install --no-audit --no-fund
+          node validate_shaders.mjs
+
+      - name: Validate Bedrock assets
+        run: python3 verification/validate_assets.py
+
+      - name: Validate runtime shader pack contract
+        run: python3 verification/validate_pack.py
+
+      - name: Build with Gradle
+        id: gradle
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew build --stacktrace --console=plain 2>&1 | tee build.log
+
+      - name: Publish failure report
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: python3 verification/report_failure.py
+
+      - name: Upload mod jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-shaders-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+      # Blob storage is unreachable from the Arena sandbox, so also publish the
+      # jar through git itself: commit it into dist/ on the same branch.
+      - name: Publish jar to dist/
+        if: "success() && github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'ci: publish')"
+        run: |
+          set -e
+          mkdir -p dist
+          rm -f dist/*.jar
+          cp build/libs/*.jar dist/
+          if [ -z "$(git status --porcelain dist)" ]; then
+            echo "jar unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist
+          git commit -m "ci: publish jar [skip ci]"
+          git push

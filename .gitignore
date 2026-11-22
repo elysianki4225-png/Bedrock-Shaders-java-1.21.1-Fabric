@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local verification toolchain (not part of the mod)
+.tools/
+verification/build/
+verification/out/
+
+# Offline verification tooling
+verification/node_modules/
+verification/out/

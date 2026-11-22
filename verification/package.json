@@ -1,0 +1,12 @@
+{
+  "name": "bedrock-shaders-verification",
+  "private": true,
+  "type": "module",
+  "description": "Offline tooling used to verify the shaders and Bedrock assets of Bedrock Shaders.",
+  "scripts": {
+    "validate": "node validate_shaders.mjs && node validate_assets.mjs"
+  },
+  "dependencies": {
+    "glslang-wasm-validator": "^0.1.0"
+  }
+}
