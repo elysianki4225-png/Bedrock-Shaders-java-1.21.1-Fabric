@@ -3,6 +3,9 @@ package dev.bedrockshaders.client;
 import dev.bedrockshaders.BedrockShadersMod;
 import dev.bedrockshaders.client.assets.BedrockAssetLibrary;
 import dev.bedrockshaders.client.command.BedrockShadersCommand;
+import dev.bedrockshaders.client.pack.BedrockPackImporter;
+import dev.bedrockshaders.client.pack.ImportedPackActivator;
+import dev.bedrockshaders.client.pack.PackRegistry;
 import dev.bedrockshaders.client.gui.BedrockShadersScreen;
 import dev.bedrockshaders.client.render.BedrockPipeline;
 import dev.bedrockshaders.client.render.BedrockShaderPack;
@@ -25,6 +28,8 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.List;
+
 /**
  * Client entrypoint: loads the config, generates the runtime shader pack, registers
  * the resource reload listeners, the key binding and the {@code /bedrock} command.
@@ -38,6 +43,23 @@ public final class BedrockShadersClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ConfigManager.get().load();
+
+        // Instance folder that behaves like Iris' shaderpacks folder: drop a .mcpack in
+        // and it is converted + enabled on this launch.
+        PackRegistry.get().ensureFolders();
+        PackRegistry.get().load();
+        if (ConfigManager.get().config().autoImportPacks) {
+            List<BedrockPackImporter.Result> imported = PackRegistry.get().importPending();
+            for (BedrockPackImporter.Result result : imported) {
+                if (!result.success()) {
+                    BedrockShadersMod.LOGGER.warn("Bedrock pack import skipped: {}", result.message());
+                }
+            }
+            if (!imported.isEmpty()) {
+                BedrockShadersMod.LOGGER.info("Imported {} Bedrock archive(s) from {}",
+                        imported.size(), PackRegistry.importFolder());
+            }
+        }
 
         FabricLoader.getInstance().getModContainer(MOD_ID).ifPresent(container ->
                 packRegistered = ResourceManagerHelper.registerBuiltinResourcePack(
@@ -63,6 +85,10 @@ public final class BedrockShadersClient implements ClientModInitializer {
                 "key.categories.bedrock_shaders"));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (pendingPackSync) {
+                pendingPackSync = false;
+                ImportedPackActivator.reload(client);
+            }
             while (openMenuKey.wasPressed()) {
                 if (client.currentScreen == null) {
                     ConfigManager.get().armUndoOnOpen();
@@ -82,8 +108,12 @@ public final class BedrockShadersClient implements ClientModInitializer {
             }
         });
 
-        BedrockShadersMod.LOGGER.info("Bedrock Shaders client initialised (builtin pack registered: {})", packRegistered);
+        BedrockShadersMod.LOGGER.info("Bedrock Shaders client initialised (builtin pack: {}, import folder: {})",
+                packRegistered, PackRegistry.importFolder());
     }
+
+    /** Set once the client is far enough through startup for a resource reload. */
+    private static boolean pendingPackSync = true;
 
     public static boolean isPackRegistered() {
         return packRegistered;
@@ -104,6 +134,7 @@ public final class BedrockShadersClient implements ClientModInitializer {
             BedrockAssetLibrary.get().reload(manager);
             BedrockUniforms.invalidate();
             BedrockShaderPack.ensureGenerated(manager, true);
+            ImportedPackActivator.invalidate();
             MinecraftClient client = MinecraftClient.getInstance();
             if (client != null && client.world == null) {
                 // Outside a world the pipeline is recreated lazily on the next frame.

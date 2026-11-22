@@ -6,6 +6,7 @@ import dev.bedrockshaders.BedrockShadersMod;
 import dev.bedrockshaders.bedrock.AtmosphereSettings;
 import dev.bedrockshaders.bedrock.ColorGradingSettings;
 import dev.bedrockshaders.bedrock.FogSettings;
+import dev.bedrockshaders.bedrock.WaterSettings;
 import dev.bedrockshaders.bedrock.LightingSettings;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.resource.Resource;
@@ -38,6 +39,7 @@ public final class BedrockAssetLibrary {
     private final Map<String, LightingSettings> lighting = new HashMap<>();
     private final Map<String, AtmosphereSettings> atmosphere = new HashMap<>();
     private final Map<String, ColorGradingSettings> grading = new HashMap<>();
+    private WaterSettings water = WaterSettings.empty();
 
     /** Bedrock fog identifier (e.g. {@code minecraft:fog_plains}) -> sample file names. */
     private final Map<String, Binding> bindings = new HashMap<>();
@@ -69,6 +71,7 @@ public final class BedrockAssetLibrary {
         grading.clear();
         bindings.clear();
         fogCandidates.clear();
+        water = WaterSettings.empty();
         parsedFiles = 0;
         loadErrors = 0;
 
@@ -130,12 +133,13 @@ public final class BedrockAssetLibrary {
             }
         }
         discoverFogFiles(manager);
+        loadWaterTable(manager);
         registerClimateBindings();
 
         loaded = true;
         BedrockShadersMod.LOGGER.info(
-                "Bedrock assets ready: {} fog, {} lighting, {} atmospherics, {} colour grading ({} files, {} errors)",
-                fog.size(), lighting.size(), atmosphere.size(), grading.size(), parsedFiles, loadErrors);
+                "Bedrock assets ready: {} fog, {} lighting, {} atmospherics, {} colour grading, {} water biomes ({} files, {} errors)",
+                fog.size(), lighting.size(), atmosphere.size(), grading.size(), water.size(), parsedFiles, loadErrors);
     }
 
     private void registerBinding(String fogId, String fogFile, String lightingFile, String atmosphereFile, String gradingFile) {
@@ -190,6 +194,32 @@ public final class BedrockAssetLibrary {
         for (String fogId : fogIds) {
             bindings.put(fogId, new Binding(fogFile, lightingFile, atmosphereFile, gradingFile));
         }
+    }
+
+    /**
+     * Loads Bedrock's per-biome water colours ({@code biomes_client.json}). Optional: the
+     * shipped mod has no water table, so an absent file is not an error.
+     */
+    private void loadWaterTable(ResourceManager manager) {
+        Identifier identifier = id("water/biomes_client.json");
+        Optional<Resource> resource = manager.getResource(identifier);
+        if (resource.isEmpty()) {
+            return;
+        }
+        try (InputStreamReader reader = new InputStreamReader(resource.get().getInputStream(), StandardCharsets.UTF_8)) {
+            JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
+            water = WaterSettings.parse(json);
+            parsedFiles++;
+            BedrockShadersMod.LOGGER.info("Bedrock water table loaded: {} biome entries", water.size());
+        } catch (IOException | RuntimeException e) {
+            loadErrors++;
+            BedrockShadersMod.LOGGER.warn("Failed to parse Bedrock water table {}: {}", identifier, e.getMessage());
+        }
+    }
+
+    /** Bedrock water appearance; empty when no pack supplied {@code biomes_client.json}. */
+    public WaterSettings water() {
+        return water;
     }
 
     private JsonObject readJson(ResourceManager manager, String path) {

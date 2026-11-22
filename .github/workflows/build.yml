@@ -37,6 +37,9 @@ jobs:
       - name: Validate runtime shader pack contract
         run: python3 verification/validate_pack.py
 
+      - name: Test .mcpack importer + localisation
+        run: python3 verification/test_importer.py
+
       - name: Build with Gradle
         id: gradle
         run: |

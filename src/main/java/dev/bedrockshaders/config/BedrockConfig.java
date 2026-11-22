@@ -63,6 +63,10 @@ public final class BedrockConfig {
     public float contrast = 1.0F;
     public float temperatureKelvin = 6500.0F;
 
+    // Imported Bedrock packs (.mcpack dropped into bedrock-shaders/packs)
+    public boolean autoImportPacks = true;
+    public boolean deletePackAfterImport = false;
+
     // Advanced / debug
     public float renderScale = 1.0F;
     public boolean debugOverlay = false;
@@ -136,6 +140,8 @@ public final class BedrockConfig {
         saturation = other.saturation;
         contrast = other.contrast;
         temperatureKelvin = other.temperatureKelvin;
+        autoImportPacks = other.autoImportPacks;
+        deletePackAfterImport = other.deletePackAfterImport;
         renderScale = other.renderScale;
         debugOverlay = other.debugOverlay;
         logFrameDiagnostics = other.logFrameDiagnostics;
