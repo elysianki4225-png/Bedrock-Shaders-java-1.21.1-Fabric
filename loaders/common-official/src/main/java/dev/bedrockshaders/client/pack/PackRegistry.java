@@ -6,7 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import dev.bedrockshaders.BedrockShadersMod;
-import net.fabricmc.loader.api.FabricLoader;
+import dev.bedrockshaders.client.GamePaths;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -52,7 +52,7 @@ public final class PackRegistry {
     }
 
     public static Path root() {
-        return FabricLoader.getInstance().getGameDir().resolve("bedrock-shaders");
+        return GamePaths.packFolder();
     }
 
     public static Path importFolder() {
@@ -64,7 +64,7 @@ public final class PackRegistry {
 
     /** Vanilla's pack folder - the only place Minecraft scans for resource packs. */
     public static Path generatedFolder() {
-        return FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+        return GamePaths.resourcePacksFolder();
     }
 
     public static Path indexFile() {

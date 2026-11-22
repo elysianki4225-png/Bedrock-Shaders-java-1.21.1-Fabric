@@ -67,6 +67,35 @@ jar {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// Quilt Loader build.
+//
+// Quilt Loader 0.30 loads Fabric mods natively (Fabric API included, since there is no
+// Quilted Fabric API release for 1.21.1), and it reads a quilt.mod.json when one is
+// present. So the Quilt artifact is the Fabric jar with the metadata swapped: no code is
+// compiled twice and the two jars cannot drift apart.
+// ---------------------------------------------------------------------------
+def quiltJar = tasks.register('quiltJar', Jar) {
+    group = 'build'
+    description = 'Builds the Quilt Loader variant: the Fabric jar with quilt.mod.json metadata.'
+    archiveBaseName = "${project.base.archivesName.get()}-quilt"
+    archiveClassifier = ''
+    from(sourceSets.main.output)
+    from(sourceSets.client.output)
+    from(project.file('src/quilt/resources'))
+    from('LICENSE') {
+        rename { "${it}_${project.base.archivesName.get()}-quilt" }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude 'fabric.mod.json'
+    dependsOn processResources, syncShaders
+}
+
+tasks.named('assemble') {
+    dependsOn quiltJar
+}
+
 publishing {
     publications {
         create("mavenJava", MavenPublication) {

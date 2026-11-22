@@ -20,10 +20,10 @@
     },
     "intermediate_mappings": "net.fabricmc:intermediary",
     "entrypoints": {
-      "init": [
+      "main": [
         "dev.bedrockshaders.BedrockShadersMod"
       ],
-      "client_init": [
+      "client": [
         "dev.bedrockshaders.client.BedrockShadersClient"
       ]
     },
@@ -44,9 +44,6 @@
         "id": "fabric-api",
         "versions": ">=0.100.0"
       }
-    ],
-    "mixin": [
-      "bedrock_shaders.client.mixins.json"
     ]
   },
   "mixin": [

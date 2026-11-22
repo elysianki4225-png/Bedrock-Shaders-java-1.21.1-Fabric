@@ -45,14 +45,21 @@ sourceSets {
             // Loader-agnostic code: the shared asset/config model and the parts of the
             // renderer that never touch a Minecraft class.
             srcDir rootProject.file('src/main/java')
+            // Official-mapped, loader-agnostic client code: the frame calculation, the
+            // Bedrock asset loader, the GUI and the three mixins.
+            srcDir rootProject.file('loaders/common-official/src/main/java')
             srcDir 'src/main/java'
         }
         resources {
+            // Lang, icon, the Bedrock JSON pack and the GLSL that syncShaders generates.
+            // Deliberately not src/client/resources: that holds the Yarn mixin config.
             srcDir rootProject.file('src/main/resources')
+            srcDir rootProject.file('loaders/common-official/src/main/resources')
             srcDir 'src/main/resources'
             exclude 'fabric.mod.json'
             exclude 'quilt.mod.json'
             exclude 'bedrock_shaders.client.mixins.json'
+            exclude '**/*.accesswidener'
         }
     }
 }

@@ -28,3 +28,6 @@ type = "required"
 versionRange = "[1.21.1,1.21.2)"
 ordering = "NONE"
 side = "BOTH"
+
+[[mixins]]
+config = "bedrock_shaders.official.mixins.json"
