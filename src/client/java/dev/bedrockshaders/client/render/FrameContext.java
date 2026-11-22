@@ -230,7 +230,8 @@ public final class FrameContext {
         // Bedrock's biomes_client.json describes water per biome and is the authoritative
         // source when an imported pack provides it; the fog setting is only the fallback.
         activePackName = PackRegistry.get().activePackForBiome(biomeId);
-        WaterSettings waterTable = assets.water();
+        // litColors() runs outside the frame setup, so the library is fetched directly.
+        WaterSettings waterTable = BedrockAssetLibrary.get().water();
         if (!waterTable.isEmpty()) {
             WaterSettings.Entry waterEntry = waterTable.entryFor(biomeId);
             if (waterEntry.hasFogColor) {

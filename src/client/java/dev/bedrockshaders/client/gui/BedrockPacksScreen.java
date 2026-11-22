@@ -76,7 +76,7 @@ public final class BedrockPacksScreen extends Screen {
 
     private void openFolder() {
         PackRegistry.get().ensureFolders();
-        Util.getOperatingSystem().open(PackRegistry.importFolder().toFile());
+        Util.getOperatingSystem().open(PackRegistry.importFolder());
         setStatus(Text.translatable("bedrock_shaders.packs.status.opened").getString(), 0x80C080);
     }
 
