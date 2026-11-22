@@ -164,26 +164,10 @@ jobs:
       - name: Verify ${{ matrix.loader }} jar exists
         if: success()
         working-directory: loaders/${{ matrix.loader }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          ls -l build/libs/ || true
-          if ! ls build/libs/*.jar >/dev/null 2>&1; then
-            {
-              echo "The ${{ matrix.loader }} build reported success but produced no jar."
-              echo
-              echo '```'
-              find build -maxdepth 3 -type d | head -40
-              echo '--- build.log head (first failure) ---'
-              head -250 build.log 2>/dev/null || true
-              echo '```'
-            } > /tmp/report.md
-            gh issue create --repo $GITHUB_REPOSITORY \
-              --title "${{ matrix.loader }} produced no jar $GITHUB_RUN_ID" \
-              --body-file /tmp/report.md || true
-            exit 1
-          fi
+          ls -l build/libs/
+          ls build/libs/*.jar >/dev/null
 
       # Mirror the Fabric job's dist/ publishing so all four jars are downloadable from
       # the repository itself (blob storage is unreachable in the maintainer's sandbox).
