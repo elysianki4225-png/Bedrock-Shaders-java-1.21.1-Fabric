@@ -123,6 +123,8 @@ jobs:
           echo "build exit: $?" >> build.log
           echo "=== jars produced ===" >> build.log
           find build -name '*.jar' -printf '%p %s bytes\n' >> build.log 2>&1 || true
+          echo "=== first error lines ===" >> build.log
+          grep -nE "error:|FAILURE:|What went wrong|A problem occurred|Could not|Unsupported class|Plugin|not found" build.log | head -40 >> build.log 2>&1 || true
           tail -c 3000 build.log || true
 
       # The sandbox cannot read Actions log blobs, so a failing loader build posts its
