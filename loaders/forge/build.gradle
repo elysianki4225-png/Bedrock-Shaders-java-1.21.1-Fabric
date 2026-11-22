@@ -40,8 +40,11 @@ sourceSets {
             // that never touch a Minecraft class. BedrockShadersMod is excluded because the
             // root copy implements Fabric's ModInitializer; this build ships its own
             // plain-Java equivalent from loaders/common-official.
-            srcDir new File(repoRoot, 'src/main/java')
-            exclude 'dev/bedrockshaders/BedrockShadersMod.java'
+            // The exclude is scoped to this directory on purpose: on SourceDirectorySet it
+            // would also filter the loader-agnostic copy below.
+            srcDir(new File(repoRoot, 'src/main/java')) {
+                exclude 'dev/bedrockshaders/BedrockShadersMod.java'
+            }
             // Official-mapped, loader-agnostic client code: the frame calculation, the
             // Bedrock asset loader, the GUI and the three mixins.
             srcDir new File(repoRoot, 'loaders/common-official/src/main/java')
