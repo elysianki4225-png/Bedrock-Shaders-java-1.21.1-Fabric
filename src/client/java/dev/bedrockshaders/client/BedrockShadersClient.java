@@ -61,6 +61,9 @@ public final class BedrockShadersClient implements ClientModInitializer {
             }
         }
 
+        BedrockShaderPack.setPackRoot(FabricLoader.getInstance().getConfigDir()
+                .resolve("bedrock-shaders").resolve("pack"));
+
         FabricLoader.getInstance().getModContainer(MOD_ID).ifPresent(container ->
                 packRegistered = ResourceManagerHelper.registerBuiltinResourcePack(
                         Identifier.of(MOD_ID, "runtime_shaders"),
@@ -153,9 +156,13 @@ public final class BedrockShadersClient implements ClientModInitializer {
         @Override
         public void reload(ResourceManager manager) {
             ShaderSources.clearCache();
-            BedrockAssetLibrary.get().reload(manager);
+            FabricResourceSource source = new FabricResourceSource(manager);
+            BedrockShaderPack.setCurrentSource(source);
+            ShaderSources.reload(source);
+            BedrockAssetLibrary.get().reload(source);
             BedrockUniforms.invalidate();
-            BedrockShaderPack.ensureGenerated(manager, true);
+            BedrockShaderPack.setCurrentSource(source);
+            BedrockShaderPack.ensureGenerated(source, true);
             ImportedPackActivator.invalidate();
             MinecraftClient client = MinecraftClient.getInstance();
             if (client != null && client.world == null) {

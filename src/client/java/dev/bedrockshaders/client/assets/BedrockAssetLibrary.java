@@ -8,10 +8,6 @@ import dev.bedrockshaders.bedrock.ColorGradingSettings;
 import dev.bedrockshaders.bedrock.FogSettings;
 import dev.bedrockshaders.bedrock.WaterSettings;
 import dev.bedrockshaders.bedrock.LightingSettings;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.resource.Resource;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.util.Identifier;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -20,7 +16,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -56,15 +51,16 @@ public final class BedrockAssetLibrary {
         return INSTANCE;
     }
 
-    public static Identifier id(String path) {
-        return Identifier.of(BedrockShadersMod.MOD_ID, AssetNames.ROOT + "/" + path);
+    /** Mod-relative path of a Bedrock asset, e.g. {@code bedrock/fogs/plains_fog_setting.json}. */
+    public static String path(String path) {
+        return AssetNames.ROOT + "/" + path;
     }
 
     /** A binding from a Bedrock fog identifier to the three asset files that define its look. */
     public record Binding(String fogFile, String lightingFile, String atmosphereFile, String gradingFile) {
     }
 
-    public void reload(ResourceManager manager) {
+    public void reload(ResourceSource manager) {
         fog.clear();
         lighting.clear();
         atmosphere.clear();
@@ -200,20 +196,19 @@ public final class BedrockAssetLibrary {
      * Loads Bedrock's per-biome water colours ({@code biomes_client.json}). Optional: the
      * shipped mod has no water table, so an absent file is not an error.
      */
-    private void loadWaterTable(ResourceManager manager) {
-        Identifier identifier = id("water/biomes_client.json");
-        Optional<Resource> resource = manager.getResource(identifier);
-        if (resource.isEmpty()) {
+    private void loadWaterTable(ResourceSource manager) {
+        InputStream stream = manager.open(path("water/biomes_client.json"));
+        if (stream == null) {
             return;
         }
-        try (InputStreamReader reader = new InputStreamReader(resource.get().getInputStream(), StandardCharsets.UTF_8)) {
+        try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
             water = WaterSettings.parse(json);
             parsedFiles++;
             BedrockShadersMod.LOGGER.info("Bedrock water table loaded: {} biome entries", water.size());
         } catch (IOException | RuntimeException e) {
             loadErrors++;
-            BedrockShadersMod.LOGGER.warn("Failed to parse Bedrock water table {}: {}", identifier, e.getMessage());
+            BedrockShadersMod.LOGGER.warn("Failed to parse Bedrock water table: {}", e.getMessage());
         }
     }
 
@@ -222,21 +217,20 @@ public final class BedrockAssetLibrary {
         return water;
     }
 
-    private JsonObject readJson(ResourceManager manager, String path) {
-        Identifier identifier = id(path);
-        Optional<Resource> resource = manager.getResource(identifier);
-        if (resource.isEmpty()) {
+    private JsonObject readJson(ResourceSource manager, String path) {
+        InputStream stream = manager.open(path(path));
+        if (stream == null) {
             loadErrors++;
-            BedrockShadersMod.LOGGER.warn("Bedrock asset missing from resource packs: {}", identifier);
+            BedrockShadersMod.LOGGER.warn("Bedrock asset missing from resource packs: {}", path(path));
             return null;
         }
-        try (InputStreamReader reader = new InputStreamReader(resource.get().getInputStream(), StandardCharsets.UTF_8)) {
+        try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
             parsedFiles++;
             return json;
         } catch (IOException | RuntimeException e) {
             loadErrors++;
-            BedrockShadersMod.LOGGER.warn("Failed to parse Bedrock asset {}: {}", identifier, e.getMessage());
+            BedrockShadersMod.LOGGER.warn("Failed to parse Bedrock asset {}: {}", path(path), e.getMessage());
             return null;
         }
     }
@@ -245,15 +239,16 @@ public final class BedrockAssetLibrary {
      * Discovers every {@code *_fog_setting.json} present in the resource packs, so
      * users can drop additional Bedrock fog files into the mod's asset folder.
      */
-    private void discoverFogFiles(ResourceManager manager) {
+    private void discoverFogFiles(ResourceSource manager) {
         try {
-            var found = manager.findResources("bedrock/fogs",
-                    identifier -> identifier.getNamespace().equals(BedrockShadersMod.MOD_ID)
-                            && identifier.getPath().endsWith("_fog_setting.json"));
-            TreeMap<String, Identifier> sorted = new TreeMap<>();
-            found.forEach((identifier, resource) -> sorted.put(identifier.getPath(), identifier));
-            for (Identifier identifier : sorted.values()) {
-                String fileName = identifier.getPath().substring("bedrock/fogs/".length());
+            TreeMap<String, String> sorted = new TreeMap<>();
+            for (String found : manager.list("bedrock/fogs")) {
+                if (found.endsWith("_fog_setting.json")) {
+                    sorted.put(found, found);
+                }
+            }
+            for (String found : sorted.values()) {
+                String fileName = found.substring("bedrock/fogs/".length());
                 String path = "fogs/" + fileName;
                 if (fog.containsKey(path)) {
                     continue;
@@ -358,12 +353,11 @@ public final class BedrockAssetLibrary {
         return fogCandidates;
     }
 
+    /**
+     * Marks the library as loaded. The actual loading happens in each loader's resource
+     * reload listener, which owns the {@link ResourceSource}.
+     */
     public void ensureLoaded() {
-        if (!loaded) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client != null) {
-                reload(client.getResourceManager());
-            }
-        }
+        // Loading is driven by the platform reload listener; nothing to do here.
     }
 }

@@ -1,17 +1,13 @@
 package dev.bedrockshaders.client.render;
 
 import dev.bedrockshaders.BedrockShadersMod;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.resource.Resource;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.util.Identifier;
+import dev.bedrockshaders.client.assets.ResourceSource;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Loads the Bedrock shader sources that ship in the jar at
@@ -27,8 +23,9 @@ public final class ShaderSources {
     private ShaderSources() {
     }
 
-    public static Identifier id(String path) {
-        return Identifier.of(BedrockShadersMod.MOD_ID, ROOT + path);
+    /** Mod-relative path of a shader source, e.g. {@code bedrockshader/core/x.vsh}. */
+    public static String path(String stage) {
+        return ROOT + stage;
     }
 
     public static void clearCache() {
@@ -36,7 +33,7 @@ public final class ShaderSources {
     }
 
     /** Returns the fully flattened GLSL for {@code core/<name>.vsh|fsh}. */
-    public static String get(ResourceManager manager, String stage) {
+    public static String get(ResourceSource manager, String stage) {
         String cached = CACHE.get(stage);
         if (cached != null) {
             return cached;
@@ -47,16 +44,15 @@ public final class ShaderSources {
         return flattened;
     }
 
-    private static String readRaw(ResourceManager manager, String path) {
-        Identifier identifier = id(path);
-        Optional<Resource> resource = manager.getResource(identifier);
-        if (resource.isEmpty()) {
-            throw new IllegalStateException("Missing Bedrock shader source " + identifier);
+    private static String readRaw(ResourceSource manager, String path) {
+        InputStream stream = manager.open(path);
+        if (stream == null) {
+            throw new IllegalStateException("Missing Bedrock shader source " + path);
         }
-        try (InputStream stream = resource.get().getInputStream()) {
-            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        try (InputStream in = stream) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new IllegalStateException("Could not read " + identifier, e);
+            throw new IllegalStateException("Could not read " + path, e);
         }
     }
 
@@ -65,7 +61,7 @@ public final class ShaderSources {
      * {@code GlImportProcessor}, but also supports {@code #moj_import "name"}.
      * Include files must reside under {@code bedrockshader/include/}.
      */
-    public static String flatten(ResourceManager manager, String source, int depth) {
+    public static String flatten(ResourceSource manager, String source, int depth) {
         if (depth > 8) {
             throw new IllegalStateException("Bedrock shader include depth exceeded");
         }
@@ -91,18 +87,15 @@ public final class ShaderSources {
         return out.toString();
     }
 
-    /** Called by the resource reload listener. */
-    public static void reload(MinecraftClient client) {
+    /** Called by each loader's resource reload listener. */
+    public static void reload(ResourceSource manager) {
         clearCache();
-        if (client == null) {
-            return;
-        }
         for (String stage : new String[] {
                 "bedrock_terrain.vsh", "bedrock_terrain.fsh",
                 "bedrock_translucent.vsh", "bedrock_translucent.fsh",
                 "bedrock_entity.vsh", "bedrock_entity.fsh"}) {
             try {
-                ShaderSources.get(client.getResourceManager(), stage);
+                ShaderSources.get(manager, stage);
             } catch (RuntimeException e) {
                 BedrockShadersMod.LOGGER.warn("Bedrock shader source {} unavailable", stage, e);
             }
