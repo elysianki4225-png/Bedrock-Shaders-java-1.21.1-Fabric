@@ -56,7 +56,7 @@ public final class OfficialClientSnapshot implements ClientSnapshot {
 
     @Override
     public float tickDelta() {
-        return client.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        return client.getTimer().getGameTimeDeltaPartialTick(false);
     }
 
     @Override

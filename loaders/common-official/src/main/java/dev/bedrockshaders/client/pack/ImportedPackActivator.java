@@ -84,7 +84,7 @@ public final class ImportedPackActivator {
         }
         options.resourcePacks.clear();
         options.resourcePacks.addAll(enabled);
-        options.write();
+        options.save();
         BedrockShadersMod.LOGGER.info("Resource packs synced: {} converted Bedrock pack(s) enabled", wanted.size());
         return true;
     }

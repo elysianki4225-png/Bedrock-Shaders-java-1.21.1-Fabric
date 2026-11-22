@@ -85,7 +85,7 @@ public final class BedrockShadersScreen extends Screen {
 
     /** Rebuilds the widgets for the current page (Screen#clearAndInit is final). */
     private void rebuild() {
-        this.clearChildren();
+        this.clearWidgets();
         this.init();
     }
 
@@ -211,7 +211,7 @@ public final class BedrockShadersScreen extends Screen {
                 addRenderableWidget(Button.builder(Component.translatable("bedrock_shaders.action.reload_shaders"),
                         button -> {
                             BedrockShaderPack.regenerateFromCurrentResources();
-                            Minecraft.getInstance().reloadResources();
+                            Minecraft.getInstance().reloadResourcePacks();
                         }).bounds(centerX - 100, y, 200, ROW_HEIGHT).build());
                 y += ROW_HEIGHT + ROW_GAP;
                 addRenderableWidget(toggle(centerX - 100, y, 200, "bedrock_shaders.option.debug",
@@ -230,9 +230,9 @@ public final class BedrockShadersScreen extends Screen {
         rebuild();
     }
 
-    private CyclingButton<Boolean> toggle(int x, int y, int width, String key, boolean initial,
+    private CycleButton<Boolean> toggle(int x, int y, int width, String key, boolean initial,
                                                 java.util.function.Consumer<Boolean> setter) {
-        return CyclingButton.onOffBuilder()
+        return CycleButton.onOffBuilder()
                 .initially(initial)
                 .build(x, y, width, ROW_HEIGHT, Component.translatable(key),
                         (button, value) -> {
@@ -248,7 +248,7 @@ public final class BedrockShadersScreen extends Screen {
 
     @Override
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        this.renderBackground(context);
         context.drawCenteredString(font, title, width / 2, 6, 0xFFFFFF);
         super.render(context, mouseX, mouseY, delta);
 
@@ -266,8 +266,9 @@ public final class BedrockShadersScreen extends Screen {
         }
     }
 
+    /** {@code Screen#close()} is final in Mojang's mappings; this is the overridable hook. */
     @Override
-    public void close() {
+    public void onClose() {
         ConfigManager.get().save();
         Minecraft client = Minecraft.getInstance();
         client.setScreen(parent);

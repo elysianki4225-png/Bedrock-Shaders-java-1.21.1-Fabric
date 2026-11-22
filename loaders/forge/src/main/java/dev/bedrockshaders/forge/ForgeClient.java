@@ -3,7 +3,6 @@ package dev.bedrockshaders.forge;
 import dev.bedrockshaders.client.BedrockReloadListener;
 import dev.bedrockshaders.client.BedrockShadersClient;
 import net.minecraft.client.KeyMapping;
-import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
@@ -12,6 +11,7 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.common.MinecraftForge;
 
@@ -23,12 +23,17 @@ import java.util.List;
  * registration events later than 1.20, so the reload listener, key bindings and command
  * all arrive through the mod event bus as {@code @SubscribeEvent} hooks.
  */
-@Mod(value = "bedrock_shaders", dist = Dist.CLIENT)
+@Mod("bedrock_shaders")
 public final class ForgeClient {
     /** Filled by {@link BedrockShadersClient#init}; registered when the mod bus fires. */
     private static final List<KeyMapping> PENDING_KEYS = new ArrayList<>();
 
     public ForgeClient() {
+        // Client-only: on a dedicated server there is nothing to render, so do not touch
+        // the client event buses at all.
+        if (!FMLEnvironment.dist.isClient()) {
+            return;
+        }
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener(this::onClientSetup);
         modBus.addListener(this::onRegisterKeys);

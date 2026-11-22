@@ -76,7 +76,7 @@ public final class BedrockPacksScreen extends Screen {
 
     private void openFolder() {
         PackRegistry.get().ensureFolders();
-        Util.getOperatingSystem().open(PackRegistry.importFolder());
+        Util.getPlatform().open(PackRegistry.importFolder());
         setStatus(Component.translatable("bedrock_shaders.packs.status.opened").getString(), 0x80C080);
     }
 
@@ -100,7 +100,7 @@ public final class BedrockPacksScreen extends Screen {
     }
 
     private void importPath() {
-        String raw = pathField == null ? "" : pathField.getText().trim();
+        String raw = pathField == null ? "" : pathField.getValue().trim();
         if (raw.isEmpty()) {
             setStatus(Component.translatable("bedrock_shaders.packs.status.need_path").getString(), 0xE08080);
             return;
@@ -123,7 +123,7 @@ public final class BedrockPacksScreen extends Screen {
     }
 
     private void rebuild() {
-        this.clearChildren();
+        this.clearWidgets();
         this.init();
     }
 
@@ -134,7 +134,7 @@ public final class BedrockPacksScreen extends Screen {
 
     @Override
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        this.renderBackground(context);
         context.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
         context.drawCenteredString(font,
                 Component.translatable("bedrock_shaders.packs.subtitle", PackRegistry.importFolder().toString()),
@@ -204,8 +204,9 @@ public final class BedrockPacksScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
+    /** {@code Screen#close()} is final in Mojang's mappings; this is the overridable hook. */
     @Override
-    public void close() {
+    public void onClose() {
         Minecraft client = Minecraft.getInstance();
         client.setScreen(parent);
     }
