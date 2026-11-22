@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.bedrockshaders.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "WorldRendererMixin",
+    "BackgroundRendererMixin",
+    "LightmapTextureManagerMixin",
+    "FluidRendererMixin",
+    "GameRendererMixin",
+    "InGameHudMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
