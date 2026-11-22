@@ -217,11 +217,11 @@ public final class BedrockAssetLibrary {
         return water;
     }
 
-    private JsonObject readJson(ResourceSource manager, String path) {
-        InputStream stream = manager.open(path(path));
+    private JsonObject readJson(ResourceSource manager, String relative) {
+        InputStream stream = manager.open(path(relative));
         if (stream == null) {
             loadErrors++;
-            BedrockShadersMod.LOGGER.warn("Bedrock asset missing from resource packs: {}", path(path));
+            BedrockShadersMod.LOGGER.warn("Bedrock asset missing from resource packs: {}", path(relative));
             return null;
         }
         try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
@@ -230,7 +230,7 @@ public final class BedrockAssetLibrary {
             return json;
         } catch (IOException | RuntimeException e) {
             loadErrors++;
-            BedrockShadersMod.LOGGER.warn("Failed to parse Bedrock asset {}: {}", path(path), e.getMessage());
+            BedrockShadersMod.LOGGER.warn("Failed to parse Bedrock asset {}: {}", path(relative), e.getMessage());
             return null;
         }
     }
