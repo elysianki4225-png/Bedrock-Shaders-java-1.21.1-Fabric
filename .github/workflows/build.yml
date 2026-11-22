@@ -31,9 +31,19 @@ jobs:
         run: python3 verification/validate_assets.py
 
       - name: Build with Gradle
+        id: gradle
         run: |
           chmod +x gradlew
-          ./gradlew build --stacktrace
+          set -o pipefail
+          ./gradlew build --stacktrace --console=plain 2>&1 | tee build.log
+
+      - name: Publish failure report
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: python3 verification/report_failure.py
 
       - name: Upload mod jar
         uses: actions/upload-artifact@v4
