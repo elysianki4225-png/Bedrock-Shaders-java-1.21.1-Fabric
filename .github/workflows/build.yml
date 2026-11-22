@@ -115,13 +115,26 @@ jobs:
           set -o pipefail
           ../../gradlew ${{ matrix.task }} --stacktrace --console=plain 2>&1 | tee build.log
 
-      - name: Publish failure report
+      # The sandbox that reads this repository cannot fetch Actions log blobs, so on
+      # failure the log is also committed to the branch as the failure report.
+      - name: Publish failure log
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-        run: python3 ../../verification/report_failure.py ${{ matrix.loader }}
+        run: |
+          python3 ../../verification/report_failure.py ${{ matrix.loader }} || true
+          if [ -f build.log ]; then
+            mkdir -p ../../ci-logs
+            cp build.log ../../ci-logs/${{ matrix.loader }}.log
+            cd ../..
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add ci-logs/${{ matrix.loader }}.log
+            git commit -m "ci: ${{ matrix.loader }} failure log [skip ci]" || true
+            git push || true
+          fi
 
       - name: Upload ${{ matrix.loader }} jar
         if: success()
