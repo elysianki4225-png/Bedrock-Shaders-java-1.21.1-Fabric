@@ -1,0 +1,70 @@
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+}
+
+// Forge 1.21.1 port. Kept as its own Gradle project so the Fabric build does not have
+// to download ForgeGradle: `./gradlew -p loaders/forge build`.
+version = rootProject.property('mod_version')
+group = rootProject.property('maven_group')
+
+base {
+    archivesName = "${rootProject.property('archives_base_name')}-forge"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+minecraft {
+    mappings channel: 'official', version: project.minecraft_version
+    copyIdeResources = true
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            mods {
+                bedrock_shaders {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir rootProject.file('src/main/java')
+            srcDir 'src/main/java'
+        }
+        resources {
+            srcDir rootProject.file('src/main/resources')
+            srcDir 'src/main/resources'
+            exclude 'fabric.mod.json'
+            exclude 'quilt.mod.json'
+            exclude 'bedrock_shaders.client.mixins.json'
+        }
+    }
+}
+
+tasks.named('processResources') {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') {
+        expand 'version': project.version, 'forge_version': project.forge_version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}

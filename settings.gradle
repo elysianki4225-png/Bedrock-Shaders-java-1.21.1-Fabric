@@ -7,3 +7,8 @@ pluginManagement {
 }
 
 rootProject.name = 'bedrock-shaders'
+
+// Loader ports build as independent Gradle builds (each needs its own Minecraft toolchain),
+// so they are NOT subprojects. Build them with:
+//   ./gradlew -p loaders/neoforge build
+//   ./gradlew -p loaders/forge build
