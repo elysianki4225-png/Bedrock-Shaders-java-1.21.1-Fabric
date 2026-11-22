@@ -10,6 +10,7 @@ import dev.bedrockshaders.bedrock.WaterSettings;
 import dev.bedrockshaders.bedrock.LightingSettings;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
