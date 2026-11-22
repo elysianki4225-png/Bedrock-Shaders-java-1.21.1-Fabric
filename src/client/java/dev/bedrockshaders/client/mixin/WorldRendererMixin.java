@@ -41,7 +41,7 @@ public abstract class WorldRendererMixin {
             return;
         }
         if (ConfigManager.get().config().enabled && ConfigManager.get().config().replaceVanillaSky) {
-            pipeline.renderSky(client, context);
+            pipeline.renderSky(context);
         }
     }
 
@@ -63,6 +63,6 @@ public abstract class WorldRendererMixin {
         if (!pipeline.isReady() || !pipeline.wantsEffects()) {
             return;
         }
-        pipeline.captureScene(client, context);
+        pipeline.captureScene(context);
     }
 }

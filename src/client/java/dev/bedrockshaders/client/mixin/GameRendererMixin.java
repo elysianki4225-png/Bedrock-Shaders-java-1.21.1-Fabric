@@ -46,7 +46,7 @@ public abstract class GameRendererMixin {
             return;
         }
         if (client.world != null && pipeline.isReady() && pipeline.wantsEffects()) {
-            pipeline.renderEffects(client, context);
+            pipeline.renderEffects(context);
         }
         context.endFrame();
     }

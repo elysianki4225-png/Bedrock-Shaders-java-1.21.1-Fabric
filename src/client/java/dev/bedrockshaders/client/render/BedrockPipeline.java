@@ -5,9 +5,6 @@ import dev.bedrockshaders.client.ConfigManager;
 import dev.bedrockshaders.client.render.effects.PostShaders;
 import dev.bedrockshaders.config.BedrockConfig;
 import dev.bedrockshaders.util.Mth;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.SimpleFramebuffer;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
@@ -33,6 +30,21 @@ public final class BedrockPipeline {
     private static final BedrockPipeline INSTANCE = new BedrockPipeline();
 
     private final ScreenQuad quad = new ScreenQuad();
+
+    /**
+     * Platform hook: the game's main framebuffer. Fabric/Quilt return
+     * {@code MinecraftClient#getFramebuffer()}; Forge/NeoForge return
+     * {@code Minecraft#getMainRenderTarget()}. Set once by the loader's entrypoint.
+     */
+    private static java.util.function.Supplier<VanillaFramebuffer> mainFramebufferSupplier;
+
+    public static void setMainFramebufferSupplier(java.util.function.Supplier<VanillaFramebuffer> supplier) {
+        mainFramebufferSupplier = supplier;
+    }
+
+    private static VanillaFramebuffer mainFramebuffer() {
+        return mainFramebufferSupplier == null ? null : mainFramebufferSupplier.get();
+    }
     private final BedrockTarget sceneCopy = new BedrockTarget("scene_copy");
     private final BedrockTarget bloomTarget = new BedrockTarget("bloom");
     private final BedrockTarget aoTarget = new BedrockTarget("ao");
@@ -115,13 +127,13 @@ public final class BedrockPipeline {
      * Copies the vanilla main framebuffer into our scene target and remembers the
      * depth + matrices. Called after {@code WorldRenderer.render} has drawn the world.
      */
-    public void captureScene(MinecraftClient client, FrameContext context) {
+    public void captureScene(FrameContext context) {
         if (!isReady()) {
             return;
         }
-        Framebuffer main = client.getFramebuffer();
-        int width = main.textureWidth;
-        int height = main.textureHeight;
+        VanillaFramebuffer main = mainFramebuffer();
+        int width = main.width();
+        int height = main.height();
         if (width <= 0 || height <= 0) {
             return;
         }
@@ -140,7 +152,7 @@ public final class BedrockPipeline {
         }
 
         // Blit colour + depth so the effects read a consistent view of the frame.
-        org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_READ_FRAMEBUFFER, main.fbo);
+        org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_READ_FRAMEBUFFER, main.framebufferId());
         org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_DRAW_FRAMEBUFFER, sceneCopy.framebuffer());
         org.lwjgl.opengl.GL30.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
                 org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT, org.lwjgl.opengl.GL11.GL_NEAREST);
@@ -160,7 +172,7 @@ public final class BedrockPipeline {
      * vanilla framebuffer. Must be called from the render thread during
      * {@code GameRenderer.render}.
      */
-    public void renderEffects(MinecraftClient client, FrameContext context) {
+    public void renderEffects(FrameContext context) {
         if (!isReady() || !hasCapturedScene(context.frameId())) {
             return;
         }
@@ -276,11 +288,11 @@ public final class BedrockPipeline {
     }
 
     private void blitToVanilla(MinecraftClient client, BedrockTarget source) {
-        Framebuffer main = client.getFramebuffer();
-        int width = Math.min(source.width(), main.textureWidth);
-        int height = Math.min(source.height(), main.textureHeight);
+        VanillaFramebuffer main = mainFramebuffer();
+        int width = Math.min(source.width(), main.width());
+        int height = Math.min(source.height(), main.height());
         org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_READ_FRAMEBUFFER, source.framebuffer());
-        org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_DRAW_FRAMEBUFFER, main.fbo);
+        org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_DRAW_FRAMEBUFFER, main.framebufferId());
         org.lwjgl.opengl.GL30.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
                 org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT, org.lwjgl.opengl.GL11.GL_NEAREST);
         org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER, 0);
@@ -320,12 +332,12 @@ public final class BedrockPipeline {
     }
 
     /** Draws the Bedrock sky into the main framebuffer (replacing vanilla's sky). */
-    public void renderSky(MinecraftClient client, FrameContext context) {
+    public void renderSky(FrameContext context) {
         if (!isReady() || !ConfigManager.get().config().replaceVanillaSky) {
             return;
         }
-        Framebuffer main = client.getFramebuffer();
-        GlObjects.bindFramebuffer(main.fbo);
+        VanillaFramebuffer main = mainFramebuffer();
+        GlObjects.bindFramebuffer(main.framebufferId());
         GlObjects.beginFragmentPass();
         GL11.glDepthMask(false);
         skyProgram.use();

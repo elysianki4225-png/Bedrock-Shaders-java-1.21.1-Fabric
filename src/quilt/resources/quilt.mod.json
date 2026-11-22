@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "quilt_loader": {
+    "group": "dev.bedrockshaders",
+    "id": "bedrock_shaders",
+    "version": "${version}",
+    "metadata": {
+      "name": "Bedrock Shaders",
+      "description": "Brings Minecraft Bedrock's Deferred Rendering Pipeline look to Minecraft: Java Edition: PBR-style water, volumetric fog, Bedrock sky scattering, SSAO, screen-space reflections, god rays, bloom and Bedrock colour grading.",
+      "contributors": {
+        "Bedrock Shaders contributors": "Owner"
+      },
+      "contact": {
+        "homepage": "https://github.com/elysianki4225-png/Bedrock-Shaders-java-1.21.1-Fabric",
+        "issues": "https://github.com/elysianki4225-png/Bedrock-Shaders-java-1.21.1-Fabric/issues",
+        "sources": "https://github.com/elysianki4225-png/Bedrock-Shaders-java-1.21.1-Fabric"
+      },
+      "icon": "assets/bedrock_shaders/icon.png",
+      "license": "MIT"
+    },
+    "intermediate_mappings": "net.fabricmc:intermediary",
+    "entrypoints": {
+      "init": [
+        "dev.bedrockshaders.BedrockShadersMod"
+      ],
+      "client_init": [
+        "dev.bedrockshaders.client.BedrockShadersClient"
+      ]
+    },
+    "depends": [
+      {
+        "id": "quilt_loader",
+        "versions": ">=0.27.0"
+      },
+      {
+        "id": "minecraft",
+        "versions": "~1.21.1"
+      },
+      {
+        "id": "java",
+        "versions": ">=21"
+      },
+      {
+        "id": "fabric-api",
+        "versions": ">=0.100.0"
+      }
+    ],
+    "mixin": [
+      "bedrock_shaders.client.mixins.json"
+    ]
+  },
+  "mixin": [
+    "bedrock_shaders.client.mixins.json"
+  ]
+}

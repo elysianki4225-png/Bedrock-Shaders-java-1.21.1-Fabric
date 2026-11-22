@@ -68,6 +68,28 @@ public final class BedrockShadersClient implements ClientModInitializer {
                         Text.literal("Bedrock Shaders (runtime)"),
                         ResourcePackActivationType.DEFAULT_ENABLED));
 
+        // The render pipeline only needs three values from the main framebuffer; keep the
+        // game-type dependency here so the pipeline stays loader-agnostic.
+        BedrockPipeline.setMainFramebufferSupplier(() -> {
+            var framebuffer = MinecraftClient.getInstance().getFramebuffer();
+            return new dev.bedrockshaders.client.render.VanillaFramebuffer() {
+                @Override
+                public int framebufferId() {
+                    return framebuffer.fbo;
+                }
+
+                @Override
+                public int width() {
+                    return framebuffer.textureWidth;
+                }
+
+                @Override
+                public int height() {
+                    return framebuffer.textureHeight;
+                }
+            };
+        });
+
         ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new ReloadListener());
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
