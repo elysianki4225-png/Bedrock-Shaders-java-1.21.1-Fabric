@@ -15,7 +15,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(ShaderProgram.class)
 public abstract class ShaderProgramMixin {
-{
     @Inject(method = "bind()V", at = @At("TAIL"))
     private void bedrockShaders$afterBind(CallbackInfo ci) {
         ShaderProgram self = (ShaderProgram) (Object) this;
@@ -30,3 +29,4 @@ public abstract class ShaderProgramMixin {
         BedrockUniforms.bind(self);
         BedrockUniforms.apply(self, context, BedrockUniforms.glossFor(self.getName()));
     }
+}
