@@ -1,8 +1,6 @@
-#version 400
+#version 150
 
 uniform sampler2D Sampler0;
-uniform sampler2D Sampler1;
-uniform sampler2D Sampler2;
 
 in float vertexDistance;
 in vec4 vertexColor;

@@ -1,4 +1,4 @@
-#version 400
+#version 150
 
 #moj_import <bedrock_global.glsl>
 #moj_import <common_lighting.glsl>

@@ -97,11 +97,15 @@ public final class ShaderSources {
         if (client == null) {
             return;
         }
-        ShaderSources.get(client.getResourceManager(), "terrain.vsh");
-        ShaderSources.get(client.getResourceManager(), "terrain.fsh");
-        ShaderSources.get(client.getResourceManager(), "bedrock_water.vsh");
-        ShaderSources.get(client.getResourceManager(), "bedrock_water.fsh");
-        ShaderSources.get(client.getResourceManager(), "entity.vsh");
-        ShaderSources.get(client.getResourceManager(), "entity.fsh");
+        for (String stage : new String[] {
+                "bedrock_terrain.vsh", "bedrock_terrain.fsh",
+                "bedrock_translucent.vsh", "bedrock_translucent.fsh",
+                "bedrock_entity.vsh", "bedrock_entity.fsh"}) {
+            try {
+                ShaderSources.get(client.getResourceManager(), stage);
+            } catch (RuntimeException e) {
+                BedrockShadersMod.LOGGER.warn("Bedrock shader source {} unavailable", stage, e);
+            }
+        }
     }
 }

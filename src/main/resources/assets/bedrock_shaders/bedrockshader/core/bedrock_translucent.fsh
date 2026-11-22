@@ -1,12 +1,11 @@
-#version 400
+#version 150
 
 #moj_import <bedrock_global.glsl>
 #moj_import <common_lighting.glsl>
+#moj_import <bedrock_translucent.glsl>
 
 
 uniform sampler2D Sampler0;
-uniform sampler2D Sampler1;
-uniform sampler2D Sampler2;
 
 in float vertexDistance;
 in vec4 vertexColor;

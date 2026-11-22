@@ -21,6 +21,8 @@ const OUT = path.join(HERE, 'out');
 
 const PROGRAMS = [
   { name: 'rendertype_solid', vertex: 'bedrock_terrain.vsh', fragment: 'bedrock_terrain.fsh', shared: 'common_lighting.glsl' },
+  { name: 'rendertype_cutout', vertex: 'bedrock_terrain.vsh', fragment: 'bedrock_terrain.fsh', shared: 'common_lighting.glsl' },
+  { name: 'rendertype_cutout_mipped', vertex: 'bedrock_terrain.vsh', fragment: 'bedrock_terrain.fsh', shared: 'common_lighting.glsl' },
   { name: 'rendertype_translucent', vertex: 'bedrock_translucent.vsh', fragment: 'bedrock_translucent.fsh', helper: 'bedrock_translucent.glsl' },
   { name: 'rendertype_entity_solid', vertex: 'bedrock_entity.vsh', fragment: 'bedrock_entity.fsh', shared: 'common_lighting.glsl' },
 ];

@@ -34,6 +34,9 @@ jobs:
       - name: Validate Bedrock assets
         run: python3 verification/validate_assets.py
 
+      - name: Validate runtime shader pack contract
+        run: python3 verification/validate_pack.py
+
       - name: Build with Gradle
         id: gradle
         run: |

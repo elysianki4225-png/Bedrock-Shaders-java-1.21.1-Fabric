@@ -34,9 +34,9 @@ def strip_comments_keep_lines(text: str) -> str:
 
 def convert(source: str) -> str:
     text = strip_comments_keep_lines(source)
-    if "#version 400" in text:
-        text = text.replace("#version 400", "").lstrip("\n")
-    lines = text.splitlines()
+    # The source keeps its #version line; the converter replaces it with the ES header.
+    text = re.sub(r"^\s*#version\s+\d+.*$", "", text, flags=re.M)
+    lines = text.lstrip("\n").splitlines()
 
     frag_outputs = []
     varying_names = []

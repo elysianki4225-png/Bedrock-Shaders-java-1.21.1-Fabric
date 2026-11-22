@@ -20,8 +20,9 @@ import java.util.stream.Stream;
 
 /**
  * Generates a real resource pack in {@code config/bedrock-shaders/pack} containing
- * Minecraft 1.21.1 core-shader definitions ({@code terrain}, water, entities) whose
- * GLSL is written against Bedrock-style lighting.
+ * Minecraft 1.21.1 core-shader definitions ({@code rendertype_terrain},
+ * {@code rendertype_translucent}, {@code rendertype_entity_solid}) whose GLSL is
+ * written against Bedrock-style lighting.
  *
  * <p>Vanilla's resource-pack system is used on purpose: the pack is discovered by
  * Minecraft itself, shipped shaders are never patched at runtime, and users can
@@ -32,47 +33,67 @@ import java.util.stream.Stream;
  */
 public final class BedrockShaderPack {
     public static final String PACK_ID = "bedrock_shaders_runtime";
+    /** Uniforms vanilla's GLSL declares as {@code int} (everything else is float/vec/mat). */
+    private static final java.util.Set<String> INT_UNIFORMS = java.util.Set.of("FogShape");
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     /** A core-shader program: GLSL stage names plus the uniforms/samplers it uses. */
     private record Program(String name, String vertex, String fragment, String[] samplers, String[] uniforms) {
     }
 
+    private static final String[] BLOCK_UNIFORMS = {
+            "ModelViewMat", "ProjMat", "ColorModulator", "FogStart", "FogEnd", "FogColor", "FogShape",
+            "ChunkOffset", "BedrockViewMat", "BedrockInvViewMat", "BedrockSunDir", "BedrockMoonDir",
+            "BedrockSkyZenith", "BedrockSkyHorizon", "BedrockExposure", "BedrockGameTime",
+            "BedrockRain", "BedrockUnderwater", "BedrockWaterFogColor", "BedrockFogColorLinear",
+            "BedrockCloudHeight", "BedrockSunAngle", "BedrockFogDensity", "BedrockMaterialGloss",
+            "BedrockWaterline", "BedrockWaterSurfaceHeight", "BedrockSunColorLinear",
+            "BedrockWaterColorLinear", "BedrockWaterSurfaceColorLinear", "BedrockWaterTransparency"
+    };
+
+    private static final String[] TRANSLUCENT_UNIFORMS = {
+            "ModelViewMat", "ProjMat", "ColorModulator", "FogStart", "FogEnd", "FogColor", "FogShape",
+            "ChunkOffset", "BedrockViewMat", "BedrockInvViewMat", "BedrockSunDir", "BedrockMoonDir",
+            "BedrockSkyZenith", "BedrockSkyHorizon", "BedrockExposure", "BedrockGameTime",
+            "BedrockRain", "BedrockUnderwater", "BedrockWaterFogColor", "BedrockFogColorLinear",
+            "BedrockCloudHeight", "BedrockSunAngle", "BedrockFogDensity",
+            "BedrockWaveOffsetA", "BedrockWaveOffsetB", "BedrockSunColorLinear",
+            "BedrockWaterColorLinear", "BedrockWaterSurfaceColorLinear", "BedrockWaterTransparency",
+            "BedrockWaterWaveStrength", "BedrockWaterReflection", "BedrockWaterRefraction",
+            "BedrockCaustics", "BedrockScreenSize", "BedrockProjectionInv", "BedrockWaterSurfaceHeight"
+    };
+
+    private static final String[] ENTITY_UNIFORMS = {
+            "ModelViewMat", "ProjMat", "ColorModulator", "FogStart", "FogEnd", "FogColor", "FogShape",
+            "Light0_Direction", "Light1_Direction", "BedrockViewMat", "BedrockInvViewMat",
+            "BedrockSunDir", "BedrockMoonDir", "BedrockSkyZenith", "BedrockSkyHorizon",
+            "BedrockExposure", "BedrockGameTime", "BedrockRain", "BedrockUnderwater",
+            "BedrockWaterFogColor", "BedrockFogColorLinear", "BedrockCloudHeight",
+            "BedrockSunAngle", "BedrockFogDensity", "BedrockMaterialGloss"
+    };
+
+    /**
+     * Minecraft 1.21.1 has no {@code terrain} program: chunk geometry is drawn with
+     * {@code rendertype_solid}, {@code rendertype_cutout} and
+     * {@code rendertype_cutout_mipped}, which share one vertex format. All three are
+     * pointed at the same Bedrock terrain shader; translucent block layers (water,
+     * glass, ice) use the Bedrock water shader and solid entities the entity shader.
+     */
     private static final Program[] PROGRAMS = {
-            new Program("terrain", "terrain.vsh", "terrain.fsh",
-                    new String[] {"Sampler0", "Sampler2"},
-                    new String[] {
-                            "ModelViewMat", "ProjMat", "ColorModulator", "FogStart", "FogEnd", "FogColor", "FogShape",
-                            "ChunkOffset", "BedrockViewMat", "BedrockInvViewMat", "BedrockSunDir", "BedrockMoonDir",
-                            "BedrockSkyZenith", "BedrockSkyHorizon", "BedrockExposure", "BedrockGameTime",
-                            "BedrockRain", "BedrockUnderwater", "BedrockWaterFogColor", "BedrockFogColorLinear",
-                            "BedrockCloudHeight", "BedrockSunAngle", "BedrockFogDensity", "BedrockMaterialGloss",
-                            "BedrockWaterline", "BedrockWaterSurfaceHeight", "BedrockSunColorLinear",
-                            "BedrockWaterColorLinear", "BedrockWaterSurfaceColorLinear", "BedrockWaterTransparency"
-                    }),
-            new Program("bedrock_water", "bedrock_water.vsh", "bedrock_water.fsh",
-                    new String[] {"Sampler0", "Sampler1", "Sampler2", "BedrockSceneSampler", "BedrockDepthSampler"},
-                    new String[] {
-                            "ModelViewMat", "ProjMat", "ColorModulator", "FogStart", "FogEnd", "FogColor", "FogShape",
-                            "ChunkOffset", "BedrockViewMat", "BedrockInvViewMat", "BedrockSunDir", "BedrockMoonDir",
-                            "BedrockSkyZenith", "BedrockSkyHorizon", "BedrockExposure", "BedrockGameTime",
-                            "BedrockRain", "BedrockUnderwater", "BedrockWaterFogColor", "BedrockFogColorLinear",
-                            "BedrockCloudHeight", "BedrockSunAngle", "BedrockFogDensity",
-                            "BedrockWaveOffsetA", "BedrockWaveOffsetB", "BedrockSunColorLinear",
-                            "BedrockWaterColorLinear", "BedrockWaterSurfaceColorLinear", "BedrockWaterTransparency",
-                            "BedrockWaterWaveStrength", "BedrockWaterReflection", "BedrockWaterRefraction",
-                            "BedrockCaustics", "BedrockScreenSize", "BedrockProjectionInv", "BedrockWaterSurfaceHeight"
-                    }),
-            new Program("entity", "entity.vsh", "entity.fsh",
-                    new String[] {"Sampler0", "Sampler1", "Sampler2"},
-                    new String[] {
-                            "ModelViewMat", "ProjMat", "ColorModulator", "FogStart", "FogEnd", "FogColor", "FogShape",
-                            "Light0_Direction", "Light1_Direction", "BedrockViewMat", "BedrockInvViewMat",
-                            "BedrockSunDir", "BedrockMoonDir", "BedrockSkyZenith", "BedrockSkyHorizon",
-                            "BedrockExposure", "BedrockGameTime", "BedrockRain", "BedrockUnderwater",
-                            "BedrockWaterFogColor", "BedrockFogColorLinear", "BedrockCloudHeight",
-                            "BedrockSunAngle", "BedrockFogDensity"
-                    })
+            new Program("rendertype_solid", "bedrock_terrain.vsh", "bedrock_terrain.fsh",
+                    new String[] {"Sampler0", "Sampler2"}, BLOCK_UNIFORMS),
+            new Program("rendertype_cutout", "bedrock_terrain.vsh", "bedrock_terrain.fsh",
+                    new String[] {"Sampler0", "Sampler2"}, BLOCK_UNIFORMS),
+            new Program("rendertype_cutout_mipped", "bedrock_terrain.vsh", "bedrock_terrain.fsh",
+                    new String[] {"Sampler0", "Sampler2"}, BLOCK_UNIFORMS),
+            // Vanilla binds exactly Sampler0 (block atlas) and Sampler2 (lightmap) for
+            // translucent block layers; declaring more samplers would leave them unbound
+            // (a GL error every frame), so the water shader only uses those two.
+            new Program("rendertype_translucent", "bedrock_translucent.vsh", "bedrock_translucent.fsh",
+                    new String[] {"Sampler0", "Sampler2"}, TRANSLUCENT_UNIFORMS),
+            new Program("rendertype_entity_solid", "bedrock_entity.vsh", "bedrock_entity.fsh",
+                    new String[] {"Sampler0", "Sampler1", "Sampler2"}, ENTITY_UNIFORMS)
     };
 
     private BedrockShaderPack() {
@@ -101,9 +122,9 @@ public final class BedrockShaderPack {
             for (Program program : PROGRAMS) {
                 String vertex = ShaderSources.get(manager, program.vertex());
                 String fragment = ShaderSources.get(manager, program.fragment());
-                Files.writeString(root.resolve("assets/minecraft/shaders/core/" + program.vertex()),
+                Files.writeString(root.resolve("assets/minecraft/shaders/core/" + program.name() + ".vsh"),
                         vertex, StandardCharsets.UTF_8);
-                Files.writeString(root.resolve("assets/minecraft/shaders/core/" + program.fragment()),
+                Files.writeString(root.resolve("assets/minecraft/shaders/core/" + program.name() + ".fsh"),
                         fragment, StandardCharsets.UTF_8);
                 Files.writeString(root.resolve("assets/minecraft/shaders/core/" + program.name() + ".json"),
                         GSON.toJson(programJson(program)), StandardCharsets.UTF_8);
@@ -131,6 +152,8 @@ public final class BedrockShaderPack {
 
     private static JsonObject programJson(Program program) {
         JsonObject json = new JsonObject();
+        // 1.21.1 loads <vertex>.vsh and <fragment>.fsh next to the JSON, so both
+        // fields carry the vanilla program id and the files are written under it.
         json.addProperty("vertex", program.name());
         json.addProperty("fragment", program.name());
 
@@ -151,7 +174,7 @@ public final class BedrockShaderPack {
             }
             JsonObject entry = new JsonObject();
             entry.addProperty("name", uniform);
-            entry.addProperty("type", typeOf(value));
+            entry.addProperty("type", INT_UNIFORMS.contains(uniform) ? "int" : typeOf(value));
             entry.addProperty("count", value.length);
             JsonArray values = new JsonArray();
             for (float v : value) {
@@ -164,14 +187,13 @@ public final class BedrockShaderPack {
         return json;
     }
 
+    /**
+     * Vanilla only accepts three GLSL uniform types in a core-shader definition;
+     * anything else aborts {@code addUniform} and fails the whole resource reload.
+     * Vectors are uploaded as a scalar array with {@code count} components.
+     */
     private static String typeOf(float[] value) {
-        return switch (value.length) {
-            case 2 -> "float";
-            case 3 -> "float";
-            case 4 -> "float";
-            case 16 -> "matrix4x4";
-            default -> "float";
-        };
+        return value.length == 16 ? "matrix4x4" : "float";
     }
 
     private static Map<String, float[]> defaults() {
