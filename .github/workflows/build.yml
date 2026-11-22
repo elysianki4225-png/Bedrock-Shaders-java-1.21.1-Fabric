@@ -120,7 +120,9 @@ jobs:
           echo "gradle --version exit: $?" >> gradle-version.log
           ../../gradlew build --stacktrace --console=plain > build.log 2>&1
           echo "build exit: $?" >> build.log
-          tail -c 2000 build.log || true
+          echo "=== jars produced ===" >> build.log
+          find build -name '*.jar' -printf '%p %s bytes\n' >> build.log 2>&1 || true
+          tail -c 3000 build.log || true
 
       # The sandbox cannot read Actions log blobs, so a failing loader build posts its
       # own diagnostics as an issue: that is the only channel back to the maintainer.
@@ -153,7 +155,30 @@ jobs:
           # upload-artifact resolves paths against the workspace root, not
           # working-directory, so this must stay repository-relative.
           path: loaders/${{ matrix.loader }}/build/libs/*.jar
-          if-no-files-found: error
+          if-no-files-found: warn
+
+      - name: Verify ${{ matrix.loader }} jar exists
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          ls -l build/libs/ || true
+          if ! ls build/libs/*.jar >/dev/null 2>&1; then
+            {
+              echo "The ${{ matrix.loader }} build reported success but produced no jar."
+              echo
+              echo '```'
+              find build -maxdepth 3 -type d | head -40
+              echo '--- build.log tail ---'
+              tail -80 build.log 2>/dev/null || true
+              echo '```'
+            } > /tmp/report.md
+            gh issue create --repo $GITHUB_REPOSITORY \
+              --title "${{ matrix.loader }} produced no jar $GITHUB_RUN_ID" \
+              --body-file /tmp/report.md || true
+            exit 1
+          fi
 
       # Mirror the Fabric job's dist/ publishing so all four jars are downloadable from
       # the repository itself (blob storage is unreachable in the maintainer's sandbox).
