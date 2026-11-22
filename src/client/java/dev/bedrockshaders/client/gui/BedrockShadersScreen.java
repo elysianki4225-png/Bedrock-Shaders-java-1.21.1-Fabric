@@ -75,14 +75,15 @@ public final class BedrockShadersScreen extends Screen {
             Page value = pages[i];
             ButtonWidget button = ButtonWidget.builder(Text.translatable(value.translationKey), b -> {
                 page = value;
-                clearAndInit();
+                rebuild();
             }).dimensions(left + i * pageWidth, 20, pageWidth - 2, 20).build();
             button.active = value != page;
             addDrawableChild(button);
         }
     }
 
-    private void clearAndInit() {
+    /** Rebuilds the widgets for the current page (Screen#clearAndInit is final). */
+    private void rebuild() {
         this.clearChildren();
         this.init();
     }
@@ -203,7 +204,7 @@ public final class BedrockShadersScreen extends Screen {
     private void applyPreset(QualityPreset preset) {
         ConfigManager.get().pushUndo();
         ConfigManager.get().edit(config -> config.applyPreset(preset));
-        clearAndInit();
+        rebuild();
     }
 
     private CyclingButtonWidget<Boolean> toggle(int x, int y, int width, String key, boolean initial,

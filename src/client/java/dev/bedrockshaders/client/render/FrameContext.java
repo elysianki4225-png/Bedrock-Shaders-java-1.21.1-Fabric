@@ -113,7 +113,9 @@ public final class FrameContext {
         framebufferWidth = client.getWindow().getFramebufferWidth();
         framebufferHeight = client.getWindow().getFramebufferHeight();
         viewDistanceBlocks = client.options.getViewDistance().getValue() * 16.0F;
-        fov = (float) client.gameRenderer.getFov(client.gameRenderer.getCamera(), tickDelta, true);
+        // GameRenderer#getFov is private; derive the vertical FOV from the projection matrix instead.
+        fov = projectionMatrix == null ? 70.0F
+                : (float) Math.toDegrees(2.0 * Math.atan(1.0 / Math.max(projectionMatrix.m11(), 1.0E-4)));
 
         // Sky time: Bedrock's lighting curves are keyed on a normalised 0..1 day.
         long timeOfDay = world.getTimeOfDay();
