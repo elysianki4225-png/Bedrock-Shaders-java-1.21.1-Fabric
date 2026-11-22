@@ -140,11 +140,11 @@ jobs:
             echo
             echo "### gradle --version"
             echo '```'
-            head -30 gradle-version.log 2>/dev/null || echo "no gradle-version.log"
+            head -20 gradle-version.log 2>/dev/null || echo "no gradle-version.log"
             echo '```'
-            echo "### build.log (last 120 lines)"
+            echo "### build.log (head, first 250 lines)"
             echo '```'
-            tail -120 build.log 2>/dev/null || echo "no build.log"
+            head -250 build.log 2>/dev/null || echo "no build.log"
             echo '```'
           } > /tmp/report.md
           gh issue create --repo $GITHUB_REPOSITORY \
@@ -175,8 +175,8 @@ jobs:
               echo
               echo '```'
               find build -maxdepth 3 -type d | head -40
-              echo '--- build.log tail ---'
-              tail -80 build.log 2>/dev/null || true
+              echo '--- build.log head (first failure) ---'
+              head -250 build.log 2>/dev/null || true
               echo '```'
             } > /tmp/report.md
             gh issue create --repo $GITHUB_REPOSITORY \
