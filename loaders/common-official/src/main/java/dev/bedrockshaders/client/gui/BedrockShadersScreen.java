@@ -63,7 +63,7 @@ public final class BedrockShadersScreen extends Screen {
         buildPage(top, centerX);
         addPageButtons(centerX);
 
-        addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> close())
+        addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> onClose())
                 .bounds(centerX - 100, height - 28, 200, 20).build());
     }
 
@@ -232,9 +232,8 @@ public final class BedrockShadersScreen extends Screen {
 
     private CycleButton<Boolean> toggle(int x, int y, int width, String key, boolean initial,
                                                 java.util.function.Consumer<Boolean> setter) {
-        return CycleButton.onOffBuilder()
-                .initially(initial)
-                .build(x, y, width, ROW_HEIGHT, Component.translatable(key),
+        return CycleButton.onOffBuilder(initial)
+                .create(x, y, width, ROW_HEIGHT, Component.translatable(key),
                         (button, value) -> {
                             setter.accept(value);
                             ConfigManager.get().markDirty();
@@ -248,7 +247,7 @@ public final class BedrockShadersScreen extends Screen {
 
     @Override
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context);
+        this.renderBackground(context, mouseX, mouseY, delta);
         context.drawCenteredString(font, title, width / 2, 6, 0xFFFFFF);
         super.render(context, mouseX, mouseY, delta);
 

@@ -70,13 +70,13 @@ public final class BedrockPacksScreen extends Screen {
                     Component.translatable("bedrock_shaders.packs.vanilla_screen")));
         }).bounds(left, height - 36, 300, 20).build());
 
-        addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> close())
+        addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> onClose())
                 .bounds(width / 2 - 50, height - 12, 100, 12).build());
     }
 
     private void openFolder() {
         PackRegistry.get().ensureFolders();
-        Util.getPlatform().open(PackRegistry.importFolder());
+        Util.getPlatform().openUri(PackRegistry.importFolder().toUri());
         setStatus(Component.translatable("bedrock_shaders.packs.status.opened").getString(), 0x80C080);
     }
 
@@ -134,7 +134,7 @@ public final class BedrockPacksScreen extends Screen {
 
     @Override
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context);
+        this.renderBackground(context, mouseX, mouseY, delta);
         context.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
         context.drawCenteredString(font,
                 Component.translatable("bedrock_shaders.packs.subtitle", PackRegistry.importFolder().toString()),
