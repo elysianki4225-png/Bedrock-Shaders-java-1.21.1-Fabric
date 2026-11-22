@@ -274,7 +274,7 @@ public final class BedrockPipeline {
         quad.draw();
         BedrockTarget.end();
 
-        blitToVanilla(client, compositeTarget);
+        blitToVanilla(compositeTarget);
         GlObjects.restoreVanillaState();
     }
 
@@ -287,7 +287,7 @@ public final class BedrockPipeline {
         return exposure;
     }
 
-    private void blitToVanilla(MinecraftClient client, BedrockTarget source) {
+    private void blitToVanilla(BedrockTarget source) {
         VanillaFramebuffer main = mainFramebuffer();
         int width = Math.min(source.width(), main.width());
         int height = Math.min(source.height(), main.height());
