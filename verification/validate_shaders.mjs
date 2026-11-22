@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { execFileSync as exec0 } from 'node:child_process';
 import { createValidator } from 'glslang-wasm-validator';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -58,7 +59,30 @@ function compose(program, stage) {
 }
 
 fs.mkdirSync(OUT, { recursive: true });
+
+// 1) Post-processing / sky / water effects compiled at runtime from Java text blocks.
+exec0('node', [path.join(HERE, 'extract_java_glsl.mjs')], { stdio: 'inherit' });
+
 const validator = await createValidator();
+const failures0 = [];
+const javaEffects = fs.readdirSync(OUT).filter((f) => /\.(vert|frag)$/.test(f) && !f.includes('.es.'));
+const vertex = javaEffects.find((f) => f.endsWith('.vert'));
+for (const frag of javaEffects.filter((f) => f.endsWith('.frag'))) {
+  if (!vertex) break;
+  const result = validator.checkPass({
+    vertex: { name: vertex, source: fs.readFileSync(path.join(OUT, vertex), 'utf8') },
+    fragment: { name: frag, source: fs.readFileSync(path.join(OUT, frag), 'utf8') },
+  });
+  if (result.status === 'pass') {
+    console.log(`ok   java:${frag}`);
+  } else {
+    failures0.push(frag);
+    console.error(`FAIL java:${frag}`);
+    for (const d of result.diagnostics ?? []) {
+      console.error(`     ${d.severity}: ${d.message} (${d.source}:${d.line})`);
+    }
+  }
+}
 let failures = 0;
 
 try {
@@ -94,9 +118,9 @@ try {
   validator.dispose();
 }
 
-if (failures === 0) {
+if (failures === 0 && failures0.length === 0) {
   console.log('\nAll Bedrock Shaders core shaders compile cleanly.');
   process.exit(0);
 }
-console.error(`\n${failures} shader program(s) failed validation.`);
+console.error(`\n${failures + failures0.length} shader program(s) failed validation.`);
 process.exit(1);

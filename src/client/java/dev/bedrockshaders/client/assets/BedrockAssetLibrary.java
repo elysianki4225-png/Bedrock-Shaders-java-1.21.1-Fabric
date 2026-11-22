@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * Loads the Bedrock sample JSON (lighting, atmospherics, fog, colour grading) that
@@ -128,6 +129,7 @@ public final class BedrockAssetLibrary {
                 grading.put(file, ColorGradingSettings.parse(json, null));
             }
         }
+        discoverFogFiles(manager);
         registerClimateBindings();
 
         loaded = true;
@@ -207,6 +209,46 @@ public final class BedrockAssetLibrary {
             BedrockShadersMod.LOGGER.warn("Failed to parse Bedrock asset {}: {}", identifier, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Discovers every {@code *_fog_setting.json} present in the resource packs, so
+     * users can drop additional Bedrock fog files into the mod's asset folder.
+     */
+    private void discoverFogFiles(ResourceManager manager) {
+        try {
+            var found = manager.findResources("bedrock/fogs",
+                    identifier -> identifier.getNamespace().equals(BedrockShadersMod.MOD_ID)
+                            && identifier.getPath().endsWith("_fog_setting.json"));
+            TreeMap<String, Identifier> sorted = new TreeMap<>();
+            found.forEach((identifier, resource) -> sorted.put(identifier.getPath(), identifier));
+            for (Identifier identifier : sorted.values()) {
+                String fileName = identifier.getPath().substring("bedrock/fogs/".length());
+                String path = "fogs/" + fileName;
+                if (fog.containsKey(path)) {
+                    continue;
+                }
+                JsonObject json = readJson(manager, path);
+                if (json == null) {
+                    continue;
+                }
+                fog.put(path, FogSettings.parse(json, null));
+                String name = fileName.substring(0, fileName.length() - "_fog_setting.json".length());
+                bindings.putIfAbsent("minecraft:fog_" + name,
+                        new Binding(path, AssetNames.LIGHTING_GLOBAL, AssetNames.ATMOSPHERE_GLOBAL, AssetNames.GRADING_GLOBAL));
+            }
+        } catch (RuntimeException e) {
+            BedrockShadersMod.LOGGER.warn("Could not scan for extra Bedrock fog files: {}", e.getMessage());
+        }
+    }
+
+    /** All parsed Bedrock fog identifiers, sorted - used by the effects browser. */
+    public java.util.List<String> fogIdentifiers() {
+        return new java.util.ArrayList<>(new TreeMap<>(bindings).keySet());
+    }
+
+    public java.util.List<String> fogFiles() {
+        return new java.util.ArrayList<>(new TreeMap<>(fog).keySet());
     }
 
     public Binding binding(String fogId) {

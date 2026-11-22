@@ -18,7 +18,6 @@ uniform float BedrockWaterRefraction;
 uniform float BedrockCaustics;
 uniform vec2 BedrockScreenSize;
 uniform mat4 BedrockProjectionInv;
-uniform float BedrockWaterSurfaceHeight;
 
 vec2 bs_water_wave(vec2 worldXZ) {
     vec2 a = worldXZ * 0.31 + BedrockWaveOffsetA;
