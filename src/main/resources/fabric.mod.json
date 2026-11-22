@@ -17,7 +17,7 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "dev.bedrockshaders.BedrockShadersMod"
+      "dev.bedrockshaders.client.BedrockShadersFabric"
     ],
     "client": [
       "dev.bedrockshaders.client.BedrockShadersClient"

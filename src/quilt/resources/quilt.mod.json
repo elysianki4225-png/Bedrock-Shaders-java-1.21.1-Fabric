@@ -21,7 +21,7 @@
     "intermediate_mappings": "net.fabricmc:intermediary",
     "entrypoints": {
       "main": [
-        "dev.bedrockshaders.BedrockShadersMod"
+        "dev.bedrockshaders.client.BedrockShadersFabric"
       ],
       "client": [
         "dev.bedrockshaders.client.BedrockShadersClient"
