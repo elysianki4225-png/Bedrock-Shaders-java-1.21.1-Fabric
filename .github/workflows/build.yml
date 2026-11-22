@@ -192,8 +192,10 @@ jobs:
         working-directory: loaders/${{ matrix.loader }}
         run: |
           set -e
-          mkdir -p dist
-          cp loaders/${{ matrix.loader }}/build/libs/*.jar dist/ 2>/dev/null || {
+          mkdir -p ../../dist
+          # This step runs inside loaders/<loader>, so the jar is local and dist/ is
+          # two levels up.
+          cp build/libs/*.jar ../../dist/ 2>/dev/null || {
             echo "no jar produced"; exit 1; }
           cd ../..
           git config user.name "github-actions[bot]"
