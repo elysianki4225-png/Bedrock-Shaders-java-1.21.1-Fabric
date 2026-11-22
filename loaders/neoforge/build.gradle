@@ -80,6 +80,10 @@ def syncShaders = tasks.register('syncShaders', Exec) {
 
 tasks.named('processResources') {
     dependsOn syncShaders
+    // The mod metadata is provided once by this project's source set; if another source
+    // directory contributes the same entry, keep the first and drop the duplicate rather
+    // than failing or shipping two copies.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     inputs.property 'version', project.version
     filesMatching('META-INF/neoforge.mods.toml') {
         expand 'version': project.version, 'neoforge_version': project.neoforge_version
