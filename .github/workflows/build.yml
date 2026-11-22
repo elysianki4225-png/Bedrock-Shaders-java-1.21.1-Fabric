@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -55,3 +55,22 @@ jobs:
           name: bedrock-shaders-jar
           path: build/libs/*.jar
           if-no-files-found: error
+
+      # Blob storage is unreachable from the Arena sandbox, so also publish the
+      # jar through git itself: commit it into dist/ on the same branch.
+      - name: Publish jar to dist/
+        if: success() && github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'ci: publish')
+        run: |
+          set -e
+          mkdir -p dist
+          rm -f dist/*.jar
+          cp build/libs/*.jar dist/
+          if [ -z "$(git status --porcelain dist)" ]; then
+            echo "jar unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist
+          git commit -m "ci: publish jar"
+          git push
