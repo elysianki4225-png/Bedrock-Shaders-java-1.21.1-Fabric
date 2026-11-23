@@ -109,7 +109,7 @@ public final class BedrockShadersCommand {
                                     + " pack=" + (frame.activePackName().isEmpty() ? "builtin" : frame.activePackName())
                                     + " family=" + frame.shaderFamily().id
                                     + " compat=" + RenderCompat.get().mode()
-                                    + " (" + RenderCompat.get().reason() + ")")));
+                                    + " (" + RenderCompat.get().reason() + ")"));
                     return 1;
                 }))
                 .then(literal("fog").executes(ctx -> {

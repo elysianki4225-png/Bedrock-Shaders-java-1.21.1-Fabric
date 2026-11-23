@@ -25,6 +25,9 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      - name: Check Java source structure
+        run: python3 verification/check_java_syntax.py
+
       - name: Validate shaders (Khronos glslang)
         run: |
           cd verification
