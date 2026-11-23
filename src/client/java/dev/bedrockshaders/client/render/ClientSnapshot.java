@@ -16,7 +16,19 @@ public interface ClientSnapshot {
     boolean inWorld();
 
     /** The world's dimension key, e.g. {@code minecraft:overworld}. */
+    /**
+     * Dimension id, e.g. {@code minecraft:the_nether}.
+     *
+     * <p>Not called per frame: {@link #inNether()} and {@link #inEnd()} answer the two
+     * questions the renderer actually asks, without building a string every frame.</p>
+     */
     String dimensionKey();
+
+    /** True in the Nether. Implementations should answer this cheaply. */
+    boolean inNether();
+
+    /** True in the End. */
+    boolean inEnd();
 
     /** Render tick delta (partial tick). */
     float tickDelta();
