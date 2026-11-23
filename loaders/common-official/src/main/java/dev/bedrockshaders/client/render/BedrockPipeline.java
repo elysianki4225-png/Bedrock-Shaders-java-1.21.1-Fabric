@@ -253,11 +253,13 @@ public final class BedrockPipeline {
         GlObjects.bindTexture(2, aoTarget.colorTexture());
         GlObjects.bindTexture(3, raysTarget.colorTexture());
         compositeProgram.set("ScreenSize", (float) width, (float) height);
-        compositeProgram.set("BloomStrength", bloom ? config.bloomStrength : 0.0F);
+        float extensionBloom = Math.max(0.0F, config.bloomStrength + context.extensionBloomBias());
+        compositeProgram.set("BloomStrength", bloom ? extensionBloom : 0.0F);
         compositeProgram.set("AoStrength", ssao ? config.ssaoStrength * 0.65F : 0.0F);
         compositeProgram.set("RaysStrength", rays ? config.godrayStrength * 0.55F : 0.0F);
-        compositeProgram.set("Exposure", config.exposure * exposureForContext(context));
-        compositeProgram.set("Saturation", config.saturation);
+        compositeProgram.set("Exposure",
+                config.exposure * exposureForContext(context) * context.extensionExposure());
+        compositeProgram.set("Saturation", config.saturation * context.extensionSaturation());
         var grading = context.gradingSettings();
         compositeProgram.set("Gain", grading.midtoneGain);
         compositeProgram.set("Offset", grading.midtoneOffset);
@@ -265,9 +267,10 @@ public final class BedrockPipeline {
         compositeProgram.set("Gamma", 1.0F / Math.max(0.1F, grading.midtoneGamma[0]),
                 1.0F / Math.max(0.1F, grading.midtoneGamma[1]),
                 1.0F / Math.max(0.1F, grading.midtoneGamma[2]));
-        compositeProgram.set("Contrast", grading.midtoneContrast[0] * config.contrast,
-                grading.midtoneContrast[1] * config.contrast,
-                grading.midtoneContrast[2] * config.contrast);
+        float contrast = config.contrast * context.extensionContrast();
+        compositeProgram.set("Contrast", grading.midtoneContrast[0] * contrast,
+                grading.midtoneContrast[1] * contrast,
+                grading.midtoneContrast[2] * contrast);
         compositeProgram.set("Vignette", 0.35F + context.rainGradient() * 0.15F);
         compositeProgram.set("Underwater", context.isUnderwater() ? 1.0F : 0.0F);
         compositeProgram.set("Time", context.worldTimeSeconds());

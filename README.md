@@ -9,21 +9,29 @@ and a post-processing chain (SSAO, bloom, god rays, tone mapping).
 
 ## Download
 
-Each loader has its own jar. Every file name states which loader it is for, so a folder
-holding all four stays unambiguous.
+Each loader has its own jar, and every file name states which loader it is for.
 
-| Loader | Download | File name | Requires | Status |
-| --- | --- | --- | --- | --- |
-| **Fabric** | [**bedrock-shaders-fabric-1.0.0.jar**](dist/bedrock-shaders-fabric-1.0.0.jar) | `bedrock-shaders-fabric-1.0.0.jar` | Fabric Loader ≥ 0.16 + Fabric API ≥ 0.100 | **Primary target** |
-| **Quilt** | [**bedrock-shaders-quilt-1.0.0.jar**](dist/bedrock-shaders-quilt-1.0.0.jar) | `bedrock-shaders-quilt-1.0.0.jar` | Quilt Loader ≥ 0.30 + Fabric API ≥ 0.100 | **Primary target** |
-| Forge | [bedrock-shaders-forge-1.0.0.jar](dist/bedrock-shaders-forge-1.0.0.jar) | `bedrock-shaders-forge-1.0.0.jar` | Forge 52.0.28 (1.21.1) | Maintained, secondary |
-| NeoForge | [bedrock-shaders-neoforge-1.0.0.jar](dist/bedrock-shaders-neoforge-1.0.0.jar) | `bedrock-shaders-neoforge-1.0.0.jar` | NeoForge 21.1.119 (1.21.1) | Maintained, secondary |
+| Loader | Download | Requires | Status |
+| --- | --- | --- | --- |
+| **Fabric** | [**bedrock-shaders-fabric-1.0.0.jar**](dist/bedrock-shaders-fabric-1.0.0.jar) | Fabric Loader ≥ 0.16 + Fabric API ≥ 0.100 | **Primary target** |
+| **Quilt** | [**the same Fabric jar**](dist/bedrock-shaders-fabric-1.0.0.jar) — no separate file | Quilt Loader ≥ 0.30 + Fabric API ≥ 0.100 | **Primary target** |
+| Forge | [bedrock-shaders-forge-1.0.0.jar](dist/bedrock-shaders-forge-1.0.0.jar) | Forge 52.0.28 (1.21.1) | Maintained, secondary |
+| NeoForge | [bedrock-shaders-neoforge-1.0.0.jar](dist/bedrock-shaders-neoforge-1.0.0.jar) | NeoForge 21.1.119 (1.21.1) | Maintained, secondary |
 
-Sources jar (all loaders, for reference): [bedrock-shaders-fabric-1.0.0-sources.jar](dist/bedrock-shaders-fabric-1.0.0-sources.jar)
+Sources jar: [bedrock-shaders-fabric-1.0.0-sources.jar](dist/bedrock-shaders-fabric-1.0.0-sources.jar)
 
-**Fabric and Quilt are the maintained, optimised targets.** The Forge and NeoForge ports
-compile and are updated alongside them, but they are built non-blocking in CI while their
-packaging is finished, so a loader-only failure does not mark the branch red.
+**There is deliberately no `-quilt` jar.** Quilt Loader 0.30+ loads Fabric mods natively,
+so the Fabric artifact *is* the Quilt download. A second jar that only swapped metadata
+meant two things to test and two places for the version to drift — and for a while it
+shipped a `quilt.mod.json` with a literal `${version}` that Quilt Loader refuses outright.
+One artifact, one thing to get right.
+
+**Fabric (and therefore Quilt) is the maintained, optimised target.** The Forge and
+NeoForge ports compile and are updated alongside it, but they are built non-blocking in CI
+while their packaging is finished, so a loader-only failure does not mark the branch red.
+If you have the choice, take the Fabric file: it gets the testing, and both compatibility
+paths below were designed against it. Forge and NeoForge users see a one-time in-game tip
+saying exactly that.
 
 ## Install
 
@@ -43,6 +51,26 @@ Languages: English and 简体中文 (`assets/bedrock_shaders/lang/{en_us,zh_cn}.
 Commands: `/bedrock menu`, `/bedrock toggle`, `/bedrock preset <potato|low|balanced|high|ultra>`,
 `/bedrock packs`, `/bedrock import`, `/bedrock reload`, `/bedrock fog`, `/bedrock effects`,
 `/bedrock debug`.
+
+## Living next to other mods
+
+The renderer is invasive by nature: it replaces five vanilla core shader programs and runs
+its own post chain into the main framebuffer. Some very popular mods want the same ground,
+so the mod picks a mode at launch instead of finding out later:
+
+| Installed | Mode | What happens |
+| --- | --- | --- |
+| Nothing relevant | **Full** | Everything runs |
+| **Sodium / Embeddium / Rubidium** | **Full** | They replace the chunk render backend only, so nothing changes for us |
+| **Lithium, FerriteCore, ModernFix, ImmediatelyFast, EntityCulling, C2ME, Krypton, Starlight, MemoryLeakFix, BadOptimizations, MoreCulling** | **Full** | They never touch the GL pipeline: no conflict, no special handling |
+| **Iris / Oculus** | **Yield** | Iris owns the frame and the same five programs. The mod keeps the `.mcpack` importer, the generated resource packs and the settings screen, but binds no uniforms, replaces no sky and runs no post chain — no double tone mapping, no fighting over the framebuffer |
+| **VulkanMod** | **Disabled (no GL)** | There is no OpenGL at all, so any GL call would crash. The mod still loads, the GUI still opens, imports still work — nothing visual runs |
+
+This is decided once at startup from the installed mod ids and reported in the log, so
+`latest.log` always says which mode is active and why. `/bedrock debug` shows it too.
+`verification/test_compat.py` pins the whole matrix — including that a content mod like
+Create, or an unrelated mod whose id merely starts with `iris` or `vulkan`, never triggers
+a downgrade.
 
 ## Installing Bedrock shader packs (.mcpack)
 
@@ -90,11 +118,41 @@ Per-pack state is tracked in `bedrock-shaders/index.json`, so unchanged archives
 re-imported and deleted packs are unregistered. The manager screen can toggle, delete and
 open the folder, and it links to vanilla's own resource-pack screen.
 
-**What is not supported:** binary RenderDragon shaders (`*.material.bin`) — those are
-compiled pipeline binaries with no Java Edition equivalent. Only the data-driven Deferred
-Rendering JSON is imported.
+### RenderDragon packs (experimental, off by default)
 
-## One renderer, four loaders
+Bedrock has two shader systems. The old one ships loose fog/lighting/atmosphere/grading
+JSON and is fully importable. **RenderDragon** ships a compiled pipeline instead:
+
+```
+renderer/materials/*.material.bin     <- compiled, unreadable on Java
+renderer/lighting/global.json         <- authored data, importable
+renderer/{shadows,sky,water}/*.json   <- authored data, importable
+```
+
+Those `.material.bin` files are compiled binaries for Bedrock's own pipeline. **Nothing on
+Java Edition can execute them** — there is no equivalent stage and no Java-side compiler.
+What a RenderDragon shader *looks like* on Java has to be reimplemented in GLSL from
+scratch, which is a different project.
+
+So the mod is honest about it rather than pretending:
+
+| Switch | Behaviour |
+| --- | --- |
+| **Off** (default) | A RenderDragon pack is recognised and refused with an explanation. Nothing is silently half-imported. |
+| **On** (Packs → *Experimental: RenderDragon data*) | The authored data half is imported, so the pack's colours, fog and density apply. The compiled binaries are still skipped. |
+
+Enabling the switch opens a warning first, and importing a RenderDragon pack warns again in
+chat *and* marks the row in the pack manager permanently, so a partially-effective pack is
+never mistaken for a bug. Detection reads entry names only — a 60 MB compiled material costs
+one string, not a decompression.
+
+`verification/test_renderdragon.py` pins 12 archive shapes (binary-only, data-only, both,
+uppercase paths, nested archives) and 9 path mappings.
+
+**What is still not supported:** the compiled shaders themselves. `*.material.bin` cannot be
+translated to Java Edition, with or without the switch.
+
+## One renderer, three artifacts
 
 The renderer itself (`BedrockPipeline`, `FrameContext`, `BedrockAssetLibrary`, the
 `.mcpack` importer, the GUI and the command) is plain Java with no Minecraft import.
@@ -106,8 +164,9 @@ Each platform supplies the same three small pieces:
 - three mixins on the same three vanilla methods (`GameRenderer#renderLevel`,
   `LevelRenderer#renderSky`, `ShaderInstance#apply` / `ShaderProgram#bind`).
 
-Quilt reuses the Fabric code byte-for-byte: Quilt Loader loads Fabric mods natively, so
-the Quilt artifact only swaps `fabric.mod.json` for `quilt.mod.json`.
+Quilt needs no port at all: Quilt Loader 0.30 loads Fabric mods natively (Fabric API
+included, since there is no Quilted Fabric API release for 1.21.1), so the Fabric jar runs
+there unchanged.
 
 ## How it works
 
@@ -135,6 +194,111 @@ instead it:
 `#moj_import` includes and writes the packaged copies to
 `src/main/resources/assets/bedrock_shaders/bedrockshader/`; Gradle runs it before
 `processResources`, so the jar cannot ship un-synced GLSL.
+
+## Extension packs (public API v1)
+
+Other people can build on this renderer without forking it. Everything below lives in
+`dev.bedrockshaders.api`, ships in **every** jar, and depends on nothing but the JDK — no
+Minecraft, no loader, no GL. That is deliberate: the API keeps working across Minecraft
+versions and across Fabric/Forge/NeoForge, and it can be tested without launching a game.
+
+There are two kinds of addon, and a pack author only needs the second one.
+
+### Data addons — no Java at all
+
+Ship a normal resource pack with one extra file, `assets/<your_namespace>/bedrock_shaders/api.json`:
+
+```json
+{
+  "api": 1,
+  "id": "aurora_pack",
+  "families": [
+    {
+      "id": "aurora",
+      "name_key": "your.addon.family.aurora",
+      "aliases": ["aurora", "northern lights"],
+      "fog_scale": 1.1,
+      "underwater_fog_scale": 1.3,
+      "bloom_bias": 0.4
+    }
+  ]
+}
+```
+
+That teaches the mod to recognise your shader family by name and apply its look. Every
+number you leave out means "no change" (1.0 for multipliers, 0 for biases), every value is
+clamped, and the whole file is optional — a broken declaration is logged and skipped, never
+fatal. Families you declare get the same treatment as the built-in Newb/YSS/Eternity/Solas
+ones, and your aliases are matched **before** the built-in ones so a long built-in alias
+list cannot swallow your pack's name.
+
+### Code addons — implement one interface
+
+Add a dependency on this mod, implement `dev.bedrockshaders.api.BedrockShadersExtension`,
+and list the class in `META-INF/services/dev.bedrockshaders.api.BedrockShadersExtension`.
+It is found through the JDK's `ServiceLoader`, which works identically on all three loaders.
+
+```java
+public final class AuroraExtension implements BedrockShadersExtension {
+    @Override public String id() { return "aurora_pack"; }
+    @Override public int apiVersion() { return BedrockShadersApi.API_VERSION; }
+    @Override public String displayName() { return "Aurora Pack"; }
+
+    @Override
+    public void onRegister(ExtensionRegistry registry) {
+        registry.registerFamily(FamilySpec.builder("aurora", "your.addon.family.aurora")
+                .aliases("aurora", "northern lights")
+                .fogScale(1.1F)
+                .underwaterFogScale(1.3F)
+                .build());
+
+        registry.registerFrameHook("aurora_pack", (frame, delta) -> {
+            if (frame.underwater() && frame.biomeId().endsWith("frozen_ocean")) {
+                delta.exposure = 0.9F;
+            }
+            if (frame.nether()) {
+                delta.fogSpan = 1.2F;
+            }
+        });
+    }
+}
+```
+
+The full extension surface:
+
+| Hook | When it runs | What it can do |
+| --- | --- | --- |
+| `onRegister(ExtensionRegistry)` | once, at startup | register families, frame hooks, pack preprocessors |
+| `onConfigChanged(ConfigView)` | after any settings save, preset switch or undo | react to the user's toggles, exposure, preset |
+| `onBeforeImport(PackDescriptor)` | before a `.mcpack` is written | inspect entries and metadata, **veto** the import |
+| `onAfterImport(PackDescriptor, PackWriter)` | after the pack folder exists | write extra files inside your own namespace |
+| `onDispose()` | on registry reset / shutdown | release anything you hold |
+| `FrameHook.apply(FrameView, TuningDelta)` | every frame, render thread | per-frame multipliers for fog, exposure, sun, bloom… |
+
+`FrameView` is read-only and already resolved: active pack, family, world time, sun/moon
+intensity, rain, biome, fog id, underwater/nether/end flags, camera position, fog window.
+
+`TuningDelta` and `FamilySpec` are **multiplicative and clamped** — `0.5…1.5` for per-frame
+deltas, `0.25…4.0` for family scales. An addon cannot blow out the image, and two addons
+touching the same field compose instead of overwriting each other. `PackWriter` confines
+writes to `assets/<your_namespace>/` (plus `pack.png`), refuses `pack.mcmeta` and
+`assets/minecraft/**`, and rejects `..` traversal — an extension cannot corrupt the pack or
+the mod's own output.
+
+### Safety and diagnostics
+
+An addon is third-party code, so it is treated as such: every callback is wrapped, and an
+extension that throws five times (`ExtensionRegistry.FAILURE_BUDGET`) is disabled for the
+rest of the session with a log line naming it, instead of taking the renderer down. A bad id,
+a duplicate id or an addon built for a newer API version is refused with the reason logged.
+
+In game:
+
+```
+/bedrock api            # what is installed, what registered, what failed
+/bedrock api families   # built-in and extension families
+/bedrock api guide      # the same contract as above, in chat
+```
 
 ## Verification (no GPU, no Minecraft install needed)
 

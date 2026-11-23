@@ -12,6 +12,7 @@ import dev.bedrockshaders.client.pack.PackRegistry;
 import dev.bedrockshaders.client.render.BedrockPipeline;
 import dev.bedrockshaders.client.render.BedrockShaderPack;
 import dev.bedrockshaders.client.render.BedrockUniforms;
+import dev.bedrockshaders.client.render.RenderCompat;
 import dev.bedrockshaders.client.render.ShaderSources;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -41,12 +42,21 @@ public final class BedrockShadersClient {
 
         /** Registers a key mapping; returns the live instance the tick handler polls. */
         KeyMapping registerKey(String descriptionId, int defaultKey);
+
+        /** Ids of every loaded mod, so the compatibility check can see Iris/VulkanMod. */
+        java.util.List<String> loadedModIds();
+
+        /** Whether a mod id is loaded; used for ids that were not listed above. */
+        boolean isModLoaded(String modId);
     }
 
     private static Platform platform;
     private static KeyMapping openMenuKey;
     private static KeyMapping toggleKey;
     private static boolean pendingPackSync = true;
+
+    /** Cleared after the first world join, so the Fabric recommendation shows once. */
+    private static boolean pendingFabricHint = true;
     private static boolean initialised;
 
     private BedrockShadersClient() {
@@ -60,7 +70,16 @@ public final class BedrockShadersClient {
         BedrockShadersClient.platform = platform;
         GamePaths.set(platform.configDir(), platform.gameDir());
 
+        // Decide what may run before anything touches GL: under VulkanMod even compiling our
+        // post programs would crash the client, and next to Iris two pipelines would fight
+        // over the same framebuffer.
+        RenderCompat.install(platform::isModLoaded, platform.loadedModIds());
+
         ConfigManager.get().load();
+
+        // Extension packs (code addons) via the JDK's ServiceLoader: identical on all loaders.
+        dev.bedrockshaders.api.ExtensionDiscovery.loadServices(
+                BedrockShadersClient.class.getClassLoader());
 
         // Instance folder that behaves like Iris' shaderpacks folder: drop a .mcpack in
         // and it is converted + enabled on this launch.
@@ -123,6 +142,15 @@ public final class BedrockShadersClient {
             pendingPackSync = false;
             ImportedPackActivator.reload(client);
         }
+        // Forge/NeoForge builds: one quiet, once-per-launch note that Fabric is the build
+        // this mod is written against. Not a nag (no repeat, no screen, no sound), and it
+        // still fires when the renderer has been downgraded for Iris/VulkanMod, because
+        // that is exactly the situation where the Fabric build would serve them better.
+        if (pendingFabricHint && client.player != null) {
+            pendingFabricHint = false;
+            client.player.displayClientMessage(
+                    Component.translatable("bedrock_shaders.message.prefer_fabric"), false);
+        }
         while (openMenuKey != null && openMenuKey.consumeClick()) {
             if (client.screen == null) {
                 ConfigManager.get().armUndoOnOpen();
@@ -153,7 +181,11 @@ public final class BedrockShadersClient {
         ShaderSources.reload(source);
         BedrockAssetLibrary.get().reload(source);
         BedrockUniforms.invalidate();
-        BedrockShaderPack.ensureGenerated(source, true);
+        // Generating the override pack is pointless (and under Iris, actively harmful: it
+        // would fight Iris' own core programs) when the renderer is downgraded.
+        if (RenderCompat.get().allowsGlWork()) {
+            BedrockShaderPack.ensureGenerated(source, true);
+        }
         ImportedPackActivator.invalidate();
         Minecraft client = Minecraft.getInstance();
         if (client != null && client.level == null) {

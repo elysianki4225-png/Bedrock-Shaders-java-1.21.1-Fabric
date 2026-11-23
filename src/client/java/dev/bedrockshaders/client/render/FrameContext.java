@@ -97,6 +97,14 @@ public final class FrameContext {
      */
     public void beginFrame(ClientSnapshot snapshot) {
         frameId++;
+        // A downgraded mode (Iris owns the frame, or there is no GL backend at all) must
+        // leave every downstream consumer inactive: uniforms stop binding, the sky is
+        // untouched and the post chain never runs.
+        if (!RenderCompat.get().allowsGlWork()) {
+            active = false;
+            inWorld = snapshot != null && snapshot.inWorld();
+            return;
+        }
         active = snapshot != null && snapshot.inWorld();
         inWorld = active;
         if (!active) {
@@ -220,7 +228,88 @@ public final class FrameContext {
             waterSurfaceY = (int) Math.floor(waterSurfaceHeight);
             inWaterBody = waterSurfaceHeight > snapshot.minBuildHeight();
         }
+
+        // Extension pack hook, last: the frame is complete, so an addon sees final values and
+        // whatever it writes here is what the uniforms upload. No hook registered means this
+        // is one volatile read and a branch.
+        applyExtensionHooks();
     }
+
+    /**
+     * Runs the extension frame hooks and folds their output into this frame.
+     *
+     * <p>Multipliers only, clamped by {@link dev.bedrockshaders.api.TuningDelta}, and the
+     * family's own tuning has already been applied above, so an addon adjusts the final look
+     * rather than fighting the pack data.</p>
+     */
+    private void applyExtensionHooks() {
+        var registry = dev.bedrockshaders.api.ExtensionRegistry.get();
+        if (registry.frameHooks().isEmpty()) {
+            return;
+        }
+        if (!registry.applyFrameHooks(new ExtensionFrameView(), extensionDelta)) {
+            return;
+        }
+        if (extensionDelta.fogDensity != 1.0F) {
+            fogDensity *= extensionDelta.fogDensity;
+        }
+        if (extensionDelta.fogSpan != 1.0F && fogEnd > fogStart) {
+            float span = (fogEnd - fogStart) * extensionDelta.fogSpan;
+            fogEnd = fogStart + Math.max(1.0F, span);
+        }
+        if (extensionDelta.underwaterFog != 1.0F && underwater) {
+            float span = (fogEnd - fogStart) * extensionDelta.underwaterFog;
+            fogEnd = fogStart + Math.max(1.0F, span);
+        }
+        if (extensionDelta.sunIntensity != 1.0F) {
+            sunIntensity = Mth.clamp(sunIntensity * extensionDelta.sunIntensity, 0.0F, 1.0F);
+        }
+        extensionExposure = extensionDelta.exposure;
+        extensionSaturation = extensionDelta.saturation;
+        extensionContrast = extensionDelta.contrast;
+        extensionBloomBias = extensionDelta.bloomBias;
+        extensionCausticsBias = extensionDelta.causticsBias;
+    }
+
+    /** Reused every frame: the hook API promises not to allocate on the render path. */
+    private final dev.bedrockshaders.api.TuningDelta extensionDelta = new dev.bedrockshaders.api.TuningDelta();
+
+    private float extensionExposure = 1.0F;
+    private float extensionSaturation = 1.0F;
+    private float extensionContrast = 1.0F;
+    private float extensionBloomBias = 0.0F;
+    private float extensionCausticsBias = 0.0F;
+
+    /** Read-only adapter over this frame for the public hook API. */
+    private final class ExtensionFrameView implements dev.bedrockshaders.api.FrameHook.FrameView {
+        @Override public String packId() { return activePackName; }
+        @Override public String familyId() { return family.id; }
+        @Override public float worldTimeSeconds() { return worldTimeSeconds; }
+        @Override public float sunIntensity() { return FrameContext.this.sunIntensity; }
+        @Override public float moonIntensity() { return moonIntensity; }
+        @Override public float rainGradient() { return rainGradient; }
+        @Override public String biomeId() { return biomeId; }
+        @Override public String fogId() { return fogId; }
+        @Override public boolean underwater() { return underwater; }
+        @Override public boolean nether() { return nether; }
+        @Override public boolean end() { return end; }
+        @Override public double cameraX() { return cameraX; }
+        @Override public double cameraY() { return cameraY; }
+        @Override public double cameraZ() { return cameraZ; }
+        @Override public float fogStart() { return fogStart; }
+        @Override public float fogEnd() { return fogEnd; }
+    }
+
+    /** Exposure multiplier requested by extension hooks this frame (1.0 when none). */
+    public float extensionExposure() { return extensionExposure; }
+    /** Saturation multiplier requested by extension hooks this frame. */
+    public float extensionSaturation() { return extensionSaturation; }
+    /** Contrast multiplier requested by extension hooks this frame. */
+    public float extensionContrast() { return extensionContrast; }
+    /** Additive bloom bias requested by extension hooks this frame. */
+    public float extensionBloomBias() { return extensionBloomBias; }
+    /** Additive caustics bias requested by extension hooks this frame. */
+    public float extensionCausticsBias() { return extensionCausticsBias; }
 
     private void litColors() {
         float[] zenith = atmosphereSettings.skyZenithColor.get(sunAngle, skyZenith);

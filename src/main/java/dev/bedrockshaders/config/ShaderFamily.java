@@ -132,6 +132,12 @@ public enum ShaderFamily {
             return GENERIC;
         }
         String text = joined.toString();
+        // Extension packs get first refusal: an addon exists to teach this mod about a family
+        // it does not ship, so its aliases must not be shadowed by a built-in long alias list.
+        String extensionFamily = dev.bedrockshaders.api.ExtensionRegistry.matchFamilyId(text);
+        if (extensionFamily != null) {
+            return byId(extensionFamily);
+        }
         // Order matters: check the more specific families before NEWB, whose alias list is
         // long enough to swallow names that merely mention a complementary-style shader.
         for (ShaderFamily family : new ShaderFamily[] {ETERNITY, SOLAS, YSS, NEWB}) {
@@ -152,6 +158,39 @@ public enum ShaderFamily {
                 }
             }
         }
+        // An extension-only family has no enum constant; GENERIC keeps the built-in tuning
+        // neutral and lets the addon's FamilySpec/hook supply the look instead of guessing.
         return GENERIC;
+    }
+
+    /** {@code true} when {@code id} names a built-in family rather than an extension one. */
+    public static boolean isBuiltIn(String id) {
+        if (id != null) {
+            for (ShaderFamily family : values()) {
+                if (family.id.equalsIgnoreCase(id)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Bridges the enum to the public API record so addons and built-ins share one vocabulary. */
+    public dev.bedrockshaders.api.FamilySpec toSpec() {
+        return dev.bedrockshaders.api.FamilySpec.builder(id, translationKey)
+                .fogScale(fogScale)
+                .fogDensityScale(fogDensityScale)
+                .sunScale(sunIntensityScale)
+                .underwaterFogScale(underwaterFogScale)
+                .exposureScale(exposureScale)
+                .saturationScale(saturationScale)
+                .contrastScale(contrastScale)
+                .bloomBias(bloomBias)
+                .causticsBias(causticsBias)
+                .waterReflectionBias(waterReflectionBias)
+                .godrayScale(godrayScale)
+                .ssaoBias(ssaoBias)
+                .aliases(aliasesOf(this))
+                .build();
     }
 }

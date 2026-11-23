@@ -16,10 +16,19 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHARED = ROOT / "loaders" / "common-official" / "src" / "main" / "java"
+# RenderCompat is shared config-style code: both the Fabric client tree and the official
+# source set compile it, so it must stay free of loader and Minecraft imports too.
+SHARED_TOO = [
+    ROOT / "src" / "main" / "java" / "dev" / "bedrockshaders" / "client" / "render" / "RenderCompat.java",
+]
 
 FABRIC = re.compile(r"\bnet\.fabricmc\b|\bFabricLoader\b|\bFabricClient\b")
 # Yarn class names that differ from the official (Mojang) names the shared tree compiles
 # against. Each entry is a Yarn name that must be spelled the official way here.
+# RenderCompat is called from both platform entrypoints and from FrameContext, so it may
+# not depend on a Minecraft class either.
+MINECRAFT = re.compile(r"\bnet\.minecraft\b")
+
 YARN_ONLY = re.compile(
     r"\bCyclingButton\b"          # official: CycleButton
     r"|\bMinecraftClient\b"       # official: Minecraft
@@ -29,13 +38,36 @@ YARN_ONLY = re.compile(
 )
 
 
+# Classes that look plausible but live somewhere else (or nowhere) in the 1.21.1 Forge/
+# NeoForge toolchains. Each cost a CI round: 'ModInfo' is an implementation class in the
+# loader internals, not the public API, which is IModInfo in the forgespi/neoforgespi
+# package. These cannot be type-checked offline, so at least the known traps are named.
+LOADER_API_TRAPS = [
+    ("net.minecraftforge.fml.ModInfo", "use net.minecraftforge.forgespi.language.IModInfo"),
+    ("net.neoforged.fml.ModInfo", "use net.neoforged.neoforgespi.language.IModInfo"),
+]
+
+
+def check_loader_api() -> list[str]:
+    problems = []
+    roots = [ROOT / "loaders" / "forge" / "src", ROOT / "loaders" / "neoforge" / "src"]
+    for root in roots:
+        for path in sorted(root.rglob("*.java")):
+            text = path.read_text(encoding="utf-8")
+            rel = path.relative_to(ROOT).as_posix()
+            for needle, advice in LOADER_API_TRAPS:
+                if needle in text:
+                    problems.append(f"{rel}: {needle} does not exist ({advice})")
+    return problems
+
+
 def main() -> int:
     if not SHARED.is_dir():
         print(f"missing shared source set: {SHARED}", file=sys.stderr)
         return 1
 
     problems: list[str] = []
-    files = sorted(SHARED.rglob("*.java"))
+    files = sorted(SHARED.rglob("*.java")) + [p for p in SHARED_TOO if p.is_file()]
     for path in files:
         rel = path.relative_to(ROOT).as_posix()
         text = path.read_text(encoding="utf-8")
@@ -46,9 +78,15 @@ def main() -> int:
             code = line.split("//", 1)[0]
             if line.lstrip().startswith("*"):
                 continue
-            for pattern, label in ((FABRIC, "Fabric API"), (YARN_ONLY, "Yarn-only class")):
+            patterns = [(FABRIC, "Fabric API"), (YARN_ONLY, "Yarn-only class")]
+            # Loader-neutral by contract (see SHARED_TOO): no Minecraft class at all.
+            if path in SHARED_TOO:
+                patterns.append((MINECRAFT, "Minecraft class in shared code"))
+            for pattern, label in patterns:
                 if pattern.search(code):
                     problems.append(f"{rel}:{number}: {label} in the shared source set -> {line.strip()}")
+
+    problems.extend(check_loader_api())
 
     print(f"checked {len(files)} shared source files")
     if problems:

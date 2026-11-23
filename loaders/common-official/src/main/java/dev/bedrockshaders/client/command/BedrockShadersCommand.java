@@ -8,6 +8,7 @@ import dev.bedrockshaders.client.gui.BedrockShadersScreen;
 import dev.bedrockshaders.client.render.BedrockPipeline;
 import dev.bedrockshaders.client.render.BedrockShaderPack;
 import dev.bedrockshaders.client.render.FrameContext;
+import dev.bedrockshaders.client.render.RenderCompat;
 import dev.bedrockshaders.config.QualityPreset;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
@@ -105,7 +106,10 @@ public final class BedrockShadersCommand {
                                     + " moon=" + String.format("%.2f", frame.moonIntensity())
                                     + " time=" + String.format("%.2f", frame.sunAngle())
                                     + " biome=" + frame.biomeId()
-                                    + " pack=" + (frame.activePackName().isEmpty() ? "builtin" : frame.activePackName())));
+                                    + " pack=" + (frame.activePackName().isEmpty() ? "builtin" : frame.activePackName())
+                                    + " family=" + frame.shaderFamily().id
+                                    + " compat=" + RenderCompat.get().mode()
+                                    + " (" + RenderCompat.get().reason() + ")"));
                     return 1;
                 }))
                 .then(literal("fog").executes(ctx -> {
@@ -147,6 +151,28 @@ public final class BedrockShadersCommand {
                             .setScreen(new dev.bedrockshaders.client.gui.BedrockPacksScreen(null)));
                     return 1;
                 }))
+                .then(literal("api")
+                        .executes(ctx -> printApiStatus(ctx.getSource()))
+                        .then(literal("guide").executes(ctx -> {
+                            for (String line : dev.bedrockshaders.api.ExtensionDiscovery.guide()) {
+                                reply(ctx.getSource(), Component.literal(line));
+                            }
+                            return 1;
+                        }))
+                        .then(literal("families").executes(ctx -> {
+                            var registry = dev.bedrockshaders.api.ExtensionRegistry.get();
+                            var builtIn = new java.util.ArrayList<String>();
+                            for (var family : dev.bedrockshaders.config.ShaderFamily.values()) {
+                                builtIn.add(family.id);
+                            }
+                            reply(ctx.getSource(), Component.literal(
+                                    "Built-in families: " + String.join(", ", builtIn)));
+                            var custom = registry.familyIdsSnapshot();
+                            reply(ctx.getSource(), Component.literal(custom.isEmpty()
+                                    ? "Extension families: none registered"
+                                    : "Extension families: " + String.join(", ", custom)));
+                            return 1;
+                        })))
                 .then(literal("effects").executes(ctx -> {
                     var assets = BedrockAssetLibrary.get();
                     var ids = assets.fogIdentifiers();
@@ -157,5 +183,31 @@ public final class BedrockShadersCommand {
                     return 1;
                 }));
         dispatcher.register(root);
+    }
+
+    /** Prints the extension API state: installed addons, what registered, what failed. */
+    private static int printApiStatus(CommandSourceStack source) {
+        var registry = dev.bedrockshaders.api.ExtensionRegistry.get();
+        var entries = registry.entries();
+        reply(source, Component.literal("Bedrock Shaders extension API v"
+                + dev.bedrockshaders.api.BedrockShadersApi.API_VERSION));
+        if (entries.isEmpty()) {
+            reply(source, Component.literal("  no extension packs installed"));
+        } else {
+            for (var entry : entries) {
+                reply(source, Component.literal("  " + entry.id()
+                        + " v" + entry.apiVersion()
+                        + (entry.name().isBlank() ? "" : " (" + entry.name() + ")")
+                        + (entry.disabled() ? " DISABLED after " + entry.failures() + " failure(s)"
+                                : entry.failures() > 0 ? " " + entry.failures() + " failure(s)" : "")
+                        + (entry.registeredFamilies().isBlank()
+                                ? "" : " families: " + entry.registeredFamilies())));
+            }
+        }
+        reply(source, Component.literal("  frame hooks: " + registry.frameHooks().size()
+                + ", preprocessors: " + registry.preprocessors().size()
+                + ", extension families: " + registry.families().size()));
+        reply(source, Component.literal("  /bedrock api guide|families for details"));
+        return 1;
     }
 }

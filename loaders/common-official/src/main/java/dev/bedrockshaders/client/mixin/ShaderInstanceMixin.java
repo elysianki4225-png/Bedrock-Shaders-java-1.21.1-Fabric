@@ -2,6 +2,7 @@ package dev.bedrockshaders.client.mixin;
 
 import dev.bedrockshaders.client.render.BedrockUniforms;
 import dev.bedrockshaders.client.render.FrameContext;
+import dev.bedrockshaders.client.render.RenderCompat;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.lwjgl.opengl.GL20;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,6 +21,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ShaderInstanceMixin {
     @Inject(method = "apply", at = @At("TAIL"))
     private void bedrockShaders$afterApply(CallbackInfo ci) {
+        // glUseProgram is not even defined under VulkanMod, and Iris owns these programs.
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         ShaderInstance self = (ShaderInstance) (Object) this;
         if (!BedrockUniforms.isTarget(self.getName())) {
             return;

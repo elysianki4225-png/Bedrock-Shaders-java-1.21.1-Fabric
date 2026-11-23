@@ -7,8 +7,9 @@ version = project.mod_version
 group = project.maven_group
 
 base {
-    // Every jar names its loader, so four downloads in one folder are distinguishable
-    // without opening them: -fabric, -quilt, -forge, -neoforge.
+    // Every jar names its loader, so downloads in one folder are distinguishable without
+    // opening them: -fabric, -forge, -neoforge. There is no -quilt jar: Quilt Loader loads
+    // this one directly.
     archivesName = "${project.archives_base_name}-fabric"
 }
 
@@ -71,35 +72,12 @@ jar {
 // repository would be shipped verbatim in the sources artifact.
 
 
-// ---------------------------------------------------------------------------
-// Quilt Loader build.
-//
-// Quilt Loader 0.30 loads Fabric mods natively (Fabric API included, since there is no
-// Quilted Fabric API release for 1.21.1), and it reads a quilt.mod.json when one is
-// present. So the Quilt artifact is the Fabric jar with the metadata swapped: no code is
-// compiled twice and the two jars cannot drift apart.
-// ---------------------------------------------------------------------------
-def quiltJar = tasks.register('quiltJar', Jar) {
-    group = 'build'
-    description = 'Builds the Quilt Loader variant: the Fabric jar with quilt.mod.json metadata.'
-    archiveBaseName = "${project.archives_base_name}-quilt"
-    archiveClassifier = ''
-    from(sourceSets.main.output)
-    from(sourceSets.client.output)
-    // Metadata is literal for the same reason as fabric.mod.json: this jar is assembled
-    // from the raw src/quilt/resources, bypassing processResources.
-    from(project.file('src/quilt/resources'))
-    from('LICENSE') {
-        rename { "${it}_${project.archives_base_name}-quilt" }
-    }
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    exclude 'fabric.mod.json'
-    dependsOn processResources, syncShaders
-}
-
-tasks.named('assemble') {
-    dependsOn quiltJar
-}
+// No separate Quilt artifact. Quilt Loader 0.30+ loads Fabric mods natively (including
+// Fabric API, since there is no Quilted Fabric API release for 1.21.1), so
+// dist/bedrock-shaders-fabric-1.0.0.jar is the Quilt download as well. Shipping a second
+// jar that only swapped metadata meant two things to test, two places for the version to
+// drift, and — as happened — a jar whose quilt.mod.json still contained the literal
+// ${version} that Quilt Loader refuses. One artifact, one thing to get right.
 
 publishing {
     publications {

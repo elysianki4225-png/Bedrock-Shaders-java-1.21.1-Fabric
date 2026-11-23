@@ -88,6 +88,12 @@ public final class BedrockPipeline {
         if (initialized || failed) {
             return;
         }
+        // No GL at all under VulkanMod: compiling a program would crash the game. Iris owns
+        // the frame too, and our post chain would fight its pipeline, so neither mode gets
+        // to allocate anything.
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         try {
             quad.create();
             ssaoProgram = compile("ssao", PostShaders.ssaoFragment());
@@ -119,6 +125,9 @@ public final class BedrockPipeline {
 
     /** True when the effects need the scene copy this frame (i.e. something is enabled). */
     public boolean wantsEffects() {
+        if (!RenderCompat.get().allowsGlWork()) {
+            return false;
+        }
         BedrockConfig config = ConfigManager.get().config();
         return config.enabled && (config.ssao || config.bloom || config.godrays || config.composite());
     }
@@ -128,6 +137,9 @@ public final class BedrockPipeline {
      * depth + matrices. Called after {@code WorldRenderer.render} has drawn the world.
      */
     public void captureScene(FrameContext context) {
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         if (!isReady()) {
             return;
         }
@@ -173,6 +185,9 @@ public final class BedrockPipeline {
      * {@code GameRenderer.render}.
      */
     public void renderEffects(FrameContext context) {
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         if (!isReady() || !hasCapturedScene(context.frameId())) {
             return;
         }
@@ -253,11 +268,14 @@ public final class BedrockPipeline {
         GlObjects.bindTexture(2, aoTarget.colorTexture());
         GlObjects.bindTexture(3, raysTarget.colorTexture());
         compositeProgram.set("ScreenSize", (float) width, (float) height);
-        compositeProgram.set("BloomStrength", bloom ? config.bloomStrength : 0.0F);
+        // Extension hooks adjust the final look; their biases are additive and clamped.
+        float extensionBloom = Math.max(0.0F, config.bloomStrength + context.extensionBloomBias());
+        compositeProgram.set("BloomStrength", bloom ? extensionBloom : 0.0F);
         compositeProgram.set("AoStrength", ssao ? config.ssaoStrength * 0.65F : 0.0F);
         compositeProgram.set("RaysStrength", rays ? config.godrayStrength * 0.55F : 0.0F);
-        compositeProgram.set("Exposure", config.exposure * exposureForContext(context));
-        compositeProgram.set("Saturation", config.saturation);
+        compositeProgram.set("Exposure",
+                config.exposure * exposureForContext(context) * context.extensionExposure());
+        compositeProgram.set("Saturation", config.saturation * context.extensionSaturation());
         var grading = context.gradingSettings();
         compositeProgram.set("Gain", grading.midtoneGain);
         compositeProgram.set("Offset", grading.midtoneOffset);
@@ -265,9 +283,10 @@ public final class BedrockPipeline {
         compositeProgram.set("Gamma", 1.0F / Math.max(0.1F, grading.midtoneGamma[0]),
                 1.0F / Math.max(0.1F, grading.midtoneGamma[1]),
                 1.0F / Math.max(0.1F, grading.midtoneGamma[2]));
-        compositeProgram.set("Contrast", grading.midtoneContrast[0] * config.contrast,
-                grading.midtoneContrast[1] * config.contrast,
-                grading.midtoneContrast[2] * config.contrast);
+        float contrast = config.contrast * context.extensionContrast();
+        compositeProgram.set("Contrast", grading.midtoneContrast[0] * contrast,
+                grading.midtoneContrast[1] * contrast,
+                grading.midtoneContrast[2] * contrast);
         compositeProgram.set("Vignette", 0.35F + context.rainGradient() * 0.15F);
         compositeProgram.set("Underwater", context.isUnderwater() ? 1.0F : 0.0F);
         compositeProgram.set("Time", context.worldTimeSeconds());
@@ -333,6 +352,9 @@ public final class BedrockPipeline {
 
     /** Draws the Bedrock sky into the main framebuffer (replacing vanilla's sky). */
     public void renderSky(FrameContext context) {
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         if (!isReady() || !ConfigManager.get().config().replaceVanillaSky) {
             return;
         }

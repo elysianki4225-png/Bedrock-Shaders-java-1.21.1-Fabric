@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Check that dist/ holds one loadable jar per loader, and that each one says so.
+"""Check that dist/ holds one loadable jar per supported loader, and that each says so.
 
-The repository publishes four jars, all renamed with their loader, and the README links
+The repository publishes three jars (Fabric also serves Quilt Loader), all renamed with their loader, and the README links
 each one separately. Two failure modes have already happened here and both are silent:
 
 * a jar built by the wrong project (a 20 MB toolchain merged jar) landed in dist/;
-* the metadata inside a jar named -quilt was actually Fabric's, or a jar contained a
-  second loader's metadata by accident.
+* a jar contained a second loader's metadata by accident.
 
 This check reads the zip directory of each artifact and asserts the metadata file the file
 name promises, so a mislabelled download cannot ship.
@@ -23,7 +22,8 @@ DIST = ROOT / "dist"
 # loader -> the metadata entry that makes the loader accept the jar
 METADATA = {
     "fabric": "fabric.mod.json",
-    "quilt": "quilt.mod.json",
+    # No "quilt" entry: Quilt Loader loads the Fabric jar natively, so a -quilt artifact is
+    # not expected and its presence is reported as an error below.
     "forge": "META-INF/mods.toml",
     "neoforge": "META-INF/neoforge.mods.toml",
 }
@@ -41,8 +41,7 @@ def check_templates(version: str) -> list[str]:
     the raw resources (sourcesJar) or from src/quilt/resources (quiltJar), which bypass the
     processResources expansion. Keep the literal and mod_version in step."""
     problems = []
-    for rel, key in (("src/main/resources/fabric.mod.json", '"version"'),
-                     ("src/quilt/resources/quilt.mod.json", '"version"')):
+    for rel, key in (("src/main/resources/fabric.mod.json", '"version"'),):
         path = ROOT / rel
         if not path.is_file():
             problems.append(f"missing {rel}")
@@ -101,6 +100,12 @@ def main() -> int:
     for loader in METADATA:
         if loader not in seen:
             problems.append(f"dist/ has no -{loader}- jar")
+    retired = sorted(p.name for p in DIST.glob("*-quilt-*.jar"))
+    if retired:
+        problems.append(
+            "dist/ still ships a Quilt artifact "
+            f"({', '.join(retired)}): Quilt Loader loads the Fabric jar, so the second copy "
+            "is redundant and is what shipped a literal ${version} before")
 
     # The sources artifact is the reference for the other three ports: it must actually
     # contain sources, and its metadata must not be a template. Both have regressed before.

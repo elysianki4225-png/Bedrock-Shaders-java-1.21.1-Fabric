@@ -8,6 +8,7 @@ import dev.bedrockshaders.client.gui.BedrockShadersScreen;
 import dev.bedrockshaders.client.render.BedrockPipeline;
 import dev.bedrockshaders.client.render.BedrockShaderPack;
 import dev.bedrockshaders.client.render.FrameContext;
+import dev.bedrockshaders.client.render.RenderCompat;
 import dev.bedrockshaders.config.QualityPreset;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.MinecraftClient;
@@ -40,6 +41,38 @@ public final class BedrockShadersCommand {
         return 1;
     }
 
+    /**
+     * Prints the extension API state: what is installed, what registered, and what failed.
+     *
+     * <p>This is the support command. A pack author reporting "my extension does nothing" gets
+     * told whether it was even seen, whether it registered, and how many times it threw.</p>
+     */
+    private static int printApiStatus(FabricClientCommandSource source) {
+        var registry = dev.bedrockshaders.api.ExtensionRegistry.get();
+        var entries = registry.entries();
+        source.sendFeedback(Text.literal("Bedrock Shaders extension API v"
+                + dev.bedrockshaders.api.BedrockShadersApi.API_VERSION));
+        if (entries.isEmpty()) {
+            source.sendFeedback(Text.literal("  no extension packs installed"));
+        } else {
+            for (var entry : entries) {
+                source.sendFeedback(Text.literal("  " + entry.id()
+                        + " v" + entry.apiVersion()
+                        + (entry.name().isBlank() ? "" : " (" + entry.name() + ")")
+                        + (entry.disabled() ? " DISABLED after " + entry.failures() + " failure(s)"
+                                : entry.failures() > 0 ? " " + entry.failures() + " failure(s)" : "")
+                        + (entry.registeredFamilies().isBlank()
+                                ? "" : " families: " + entry.registeredFamilies())));
+            }
+        }
+        source.sendFeedback(Text.literal("  frame hooks: " + registry.frameHooks().size()
+                + ", preprocessors: " + registry.preprocessors().size()
+                + ", extension families: " + registry.families().size()));
+        source.sendFeedback(Text.literal("  /bedrock api guide|families for details"));
+        return 1;
+    }
+
+    /** Opens the settings screen. */
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {
         LiteralArgumentBuilder<FabricClientCommandSource> root = literal("bedrock")
                 .executes(ctx -> openMenu())
@@ -92,7 +125,9 @@ public final class BedrockShadersCommand {
                                     + " time=" + String.format("%.2f", frame.sunAngle())
                                     + " biome=" + frame.biomeId()
                                     + " pack=" + (frame.activePackName().isEmpty() ? "builtin" : frame.activePackName())
-                                    + " family=" + frame.shaderFamily().id));
+                                    + " family=" + frame.shaderFamily().id
+                                    + " compat=" + RenderCompat.get().mode()
+                                    + " (" + RenderCompat.get().reason() + ")"));
                     return 1;
                 }))
                 .then(literal("fog").executes(ctx -> {
@@ -134,6 +169,28 @@ public final class BedrockShadersCommand {
                             .setScreen(new dev.bedrockshaders.client.gui.BedrockPacksScreen(null)));
                     return 1;
                 }))
+                .then(literal("api")
+                        .executes(ctx -> printApiStatus(ctx.getSource()))
+                        .then(literal("guide").executes(ctx -> {
+                            for (String line : dev.bedrockshaders.api.ExtensionDiscovery.guide()) {
+                                ctx.getSource().sendFeedback(Text.literal(line));
+                            }
+                            return 1;
+                        }))
+                        .then(literal("families").executes(ctx -> {
+                            var registry = dev.bedrockshaders.api.ExtensionRegistry.get();
+                            var builtIn = new java.util.ArrayList<String>();
+                            for (var family : dev.bedrockshaders.config.ShaderFamily.values()) {
+                                builtIn.add(family.id);
+                            }
+                            ctx.getSource().sendFeedback(Text.literal(
+                                    "Built-in families: " + String.join(", ", builtIn)));
+                            var custom = registry.familyIdsSnapshot();
+                            ctx.getSource().sendFeedback(Text.literal(custom.isEmpty()
+                                    ? "Extension families: none registered"
+                                    : "Extension families: " + String.join(", ", custom)));
+                            return 1;
+                        })))
                 .then(literal("effects").executes(ctx -> {
                     var assets = BedrockAssetLibrary.get();
                     var ids = assets.fogIdentifiers();

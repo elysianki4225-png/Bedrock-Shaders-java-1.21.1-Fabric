@@ -7,8 +7,10 @@ import dev.bedrockshaders.client.command.BedrockShadersCommand;
 import dev.bedrockshaders.client.pack.BedrockPackImporter;
 import dev.bedrockshaders.client.pack.ImportedPackActivator;
 import dev.bedrockshaders.client.pack.PackRegistry;
+import dev.bedrockshaders.client.pack.RenderDragonSupport;
 import dev.bedrockshaders.client.gui.BedrockShadersScreen;
 import dev.bedrockshaders.client.render.BedrockPipeline;
+import dev.bedrockshaders.client.render.RenderCompat;
 import dev.bedrockshaders.client.render.BedrockShaderPack;
 import dev.bedrockshaders.client.render.BedrockUniforms;
 import dev.bedrockshaders.client.render.ShaderSources;
@@ -29,6 +31,9 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
+import java.io.IOException;
+
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -49,7 +54,22 @@ public final class BedrockShadersClient implements ClientModInitializer {
         GamePaths.set(FabricLoader.getInstance().getConfigDir(),
                 FabricLoader.getInstance().getGameDir());
 
+        // Decide what may run before anything touches GL. Only the loader can enumerate
+        // installed mods, and the answer has to exist before the first frame: under
+        // VulkanMod even compiling our post programs would crash the client.
+        List<String> modIds = new ArrayList<>();
+        for (var mod : FabricLoader.getInstance().getAllMods()) {
+            modIds.add(mod.getMetadata().getId());
+        }
+        RenderCompat.install(FabricLoader.getInstance()::isModLoaded, modIds);
+
         ConfigManager.get().load();
+
+        // Extension packs load before any pack is imported, so their families are already
+        // known when the first pack is classified. Code addons only; the JSON declarations
+        // arrive with the first resource reload (see ReloadListener).
+        dev.bedrockshaders.api.ExtensionDiscovery.loadServices(
+                BedrockShadersClient.class.getClassLoader());
 
         // Instance folder that behaves like Iris' shaderpacks folder: drop a .mcpack in
         // and it is converted + enabled on this launch.
@@ -65,18 +85,28 @@ public final class BedrockShadersClient implements ClientModInitializer {
             if (!imported.isEmpty()) {
                 BedrockShadersMod.LOGGER.info("Imported {} Bedrock archive(s) from {}",
                         imported.size(), PackRegistry.importFolder());
+                reportImported(imported);
             }
         }
 
         BedrockShaderPack.setPackRoot(FabricLoader.getInstance().getConfigDir()
                 .resolve("bedrock-shaders").resolve("pack"));
 
-        FabricLoader.getInstance().getModContainer(MOD_ID).ifPresent(container ->
-                packRegistered = ResourceManagerHelper.registerBuiltinResourcePack(
-                        Identifier.of(MOD_ID, "runtime_shaders"),
-                        container,
-                        Text.literal("Bedrock Shaders (runtime)"),
-                        ResourcePackActivationType.DEFAULT_ENABLED));
+        // The built-in pack overrides five vanilla core shader programs. With Iris installed
+        // that is a direct fight over the same programs and the same framebuffer, so it is
+        // not registered at all: the imported .mcpack data still applies through the
+        // resource-pack stack that Iris itself loads.
+        if (RenderCompat.get().allowsGlWork()) {
+            FabricLoader.getInstance().getModContainer(MOD_ID).ifPresent(container ->
+                    packRegistered = ResourceManagerHelper.registerBuiltinResourcePack(
+                            Identifier.of(MOD_ID, "runtime_shaders"),
+                            container,
+                            Text.literal("Bedrock Shaders (runtime)"),
+                            ResourcePackActivationType.DEFAULT_ENABLED));
+        } else {
+            BedrockShadersMod.LOGGER.info(
+                    "Bedrock runtime shader pack not registered: {}", RenderCompat.get().reason());
+        }
 
         // The render pipeline only needs three values from the main framebuffer; keep the
         // game-type dependency here so the pipeline stays loader-agnostic.
@@ -123,6 +153,15 @@ public final class BedrockShadersClient implements ClientModInitializer {
             }
             // One-time hint on first join: without it a new player has no way to know the
             // menu exists or that a key toggles the renderer.
+            // RenderDragon warnings queued during init/import, delivered once a player exists.
+            if (!PENDING_WARNINGS.isEmpty() && client.player != null) {
+                // Drain by index: a warning queued while this loop runs (an import finishing
+                // mid-tick) must survive to the next tick instead of being cleared unseen.
+                Text warning;
+                while ((warning = PENDING_WARNINGS.poll()) != null) {
+                    client.player.sendMessage(warning, false);
+                }
+            }
             if (pendingWelcome && client.player != null && client.world != null) {
                 pendingWelcome = false;
                 client.player.sendMessage(Text.translatable("bedrock_shaders.message.welcome",
@@ -158,6 +197,42 @@ public final class BedrockShadersClient implements ClientModInitializer {
     /** Cleared after the first join, so the welcome hint shows exactly once per launch. */
     private static boolean pendingWelcome = true;
 
+    /**
+     * Chat warnings about RenderDragon packs, queued because imports run during client
+     * initialisation, when there is no player to talk to yet.
+     */
+    private static final java.util.Queue<Text> PENDING_WARNINGS = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /**
+     * Records what an import run found and queues one warning per RenderDragon archive.
+     *
+     * <p>Called for automatic and manual imports alike. A failure that already explains
+     * itself ("RenderDragon pack ... support is off") is queued too: the user dropped a file
+     * and needs to know why nothing happened.</p>
+     */
+    public static void reportImported(java.util.List<BedrockPackImporter.Result> results) {
+        for (BedrockPackImporter.Result result : results) {
+            if (!result.renderDragon()) {
+                continue;
+            }
+            RenderDragonSupport.Detection detection = result.detection();
+            Text message;
+            if (result.success()) {
+                message = Text.translatable("bedrock_shaders.message.dragon_imported",
+                        detection.dataFiles(), detection.binaries());
+            } else if (ConfigManager.get().config().experimentalRenderDragon) {
+                message = Text.translatable("bedrock_shaders.message.dragon_no_data",
+                        detection.binaries());
+            } else {
+                message = Text.translatable("bedrock_shaders.message.dragon_switch_off",
+                        detection.binaries());
+            }
+            PENDING_WARNINGS.add(message);
+            BedrockShadersMod.LOGGER.warn("RenderDragon pack noticed: {} ({})",
+                    result.message(), detection.describe());
+        }
+    }
+
     public static boolean isPackRegistered() {
         return packRegistered;
     }
@@ -171,6 +246,36 @@ public final class BedrockShadersClient implements ClientModInitializer {
             return ID;
         }
 
+        /**
+         * Reads every {@code assets/<ns>/bedrock_shaders/api.json} the loaded packs provide,
+         * so a pack author can register families without writing Java.
+         *
+         * <p>Runs on every resource reload, which includes opening the pack selection screen.
+         * Registration is idempotent by family id, so the noise is a debug-level refusal
+         * rather than a duplicate family.</p>
+         */
+        private static void loadExtensionDeclarations(ResourceManager manager) {
+            try {
+                var found = manager.findResources("bedrock_shaders",
+                        id -> id.getPath().endsWith("api.json"));
+                for (var entry : found.entrySet()) {
+                    try (var stream = entry.getValue().getInputStream()) {
+                        String json = new String(stream.readAllBytes(),
+                                java.nio.charset.StandardCharsets.UTF_8);
+                        dev.bedrockshaders.api.JsonExtensionLoader.load(
+                                entry.getKey().toString(), json);
+                    } catch (IOException | RuntimeException e) {
+                        BedrockShadersMod.LOGGER.warn("Could not read extension declaration {}: {}",
+                                entry.getKey(), e.toString());
+                    }
+                }
+            } catch (RuntimeException e) {
+                // Discovery is a nicety: a resource manager that cannot list must not break
+                // the renderer reload.
+                BedrockShadersMod.LOGGER.warn("Extension discovery skipped: {}", e.toString());
+            }
+        }
+
         @Override
         public void reload(ResourceManager manager) {
             ShaderSources.clearCache();
@@ -180,8 +285,11 @@ public final class BedrockShadersClient implements ClientModInitializer {
             BedrockAssetLibrary.get().reload(source);
             BedrockUniforms.invalidate();
             BedrockShaderPack.setCurrentSource(source);
-            BedrockShaderPack.ensureGenerated(source, true);
+            if (RenderCompat.get().allowsGlWork()) {
+                BedrockShaderPack.ensureGenerated(source, true);
+            }
             ImportedPackActivator.invalidate();
+            loadExtensionDeclarations(manager);
             MinecraftClient client = MinecraftClient.getInstance();
             if (client != null && client.world == null) {
                 // Outside a world the pipeline is recreated lazily on the next frame.
