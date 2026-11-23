@@ -26,6 +26,8 @@ public final class BedrockShadersScreen extends Screen {
     private static final int COLUMN_WIDTH = 200;
     private static final int ROW_HEIGHT = 20;
     private static final int ROW_GAP = 4;
+    /** Pixels per wheel notch: one row, so the content tracks the wheel predictably. */
+    private static final int SCROLL_STEP = 24;
 
     private enum Page {
         PRESETS("bedrock_shaders.page.presets"),
@@ -43,8 +45,19 @@ public final class BedrockShadersScreen extends Screen {
         }
     }
 
+    private static final int TOP = 44;
+    /** Bottom of the scrollable region: the footer (status + Done button) lives below it. */
+    private int contentBottom() {
+        return height - 56;
+    }
+
     private final Screen parent;
     private Page page = Page.PRESETS;
+
+    /** Vertical scroll offset in pixels; 0 when the page fits. */
+    private int scroll;
+    /** Height the current page needs, computed while building it. */
+    private int contentHeight;
 
     public BedrockShadersScreen(Screen parent) {
         super(Text.translatable("bedrock_shaders.title"));
@@ -59,8 +72,10 @@ public final class BedrockShadersScreen extends Screen {
             return;
         }
         int centerX = width / 2;
-        int top = 44;
-        buildPage(top, centerX);
+        int top = TOP - scroll;
+        contentHeight = buildPage(top, centerX);
+        // A page that no longer fits must not be left scrolled past its end.
+        clampScroll();
         addPageButtons(centerX);
 
         addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), button -> close())
@@ -89,7 +104,13 @@ public final class BedrockShadersScreen extends Screen {
         this.init();
     }
 
-    private void buildPage(int top, int centerX) {
+    /**
+     * Builds the widgets for the active page.
+     *
+     * @return the y coordinate just past the last row, which is the page's height in
+     *         screen space; the caller uses it to bound scrolling.
+     */
+    private int buildPage(int top, int centerX) {
         BedrockConfig config = ConfigManager.get().config();
         switch (page) {
             case PRESETS -> {
@@ -103,6 +124,7 @@ public final class BedrockShadersScreen extends Screen {
                 }
                 addDrawableChild(toggle(centerX - 100, y, 200, "bedrock_shaders.option.enabled",
                         config.enabled, value -> config.enabled = value));
+                return y + ROW_HEIGHT;
             }
             case ATMOSPHERE -> {
                 int y = top;
@@ -123,6 +145,7 @@ public final class BedrockShadersScreen extends Screen {
                 y += ROW_HEIGHT + ROW_GAP;
                 addDrawableChild(slider(centerX - 100, y, 200, "bedrock_shaders.option.sun_intensity",
                         config.sunIntensity, 0.0F, 3.0F, value -> config.sunIntensity = value));
+                return y + ROW_HEIGHT;
             }
             case WATER -> {
                 int y = top;
@@ -140,6 +163,7 @@ public final class BedrockShadersScreen extends Screen {
                 y += ROW_HEIGHT + ROW_GAP;
                 addDrawableChild(slider(centerX - 100, y, 200, "bedrock_shaders.option.caustics",
                         config.caustics, 0.0F, 2.0F, value -> config.caustics = value));
+                return y + ROW_HEIGHT;
             }
             case EFFECTS -> {
                 int y = top;
@@ -160,6 +184,7 @@ public final class BedrockShadersScreen extends Screen {
                 y += ROW_HEIGHT + ROW_GAP;
                 addDrawableChild(slider(centerX - 100, y, 200, "bedrock_shaders.option.godray_strength",
                         config.godrayStrength, 0.0F, 3.0F, value -> config.godrayStrength = value));
+                return y + ROW_HEIGHT;
             }
             case GRADE -> {
                 int y = top;
@@ -183,6 +208,7 @@ public final class BedrockShadersScreen extends Screen {
                                 c.exposure = 1.0F;
                             });
                         }).dimensions(centerX - 100, y, 200, ROW_HEIGHT).build());
+                return y + ROW_HEIGHT;
             }
             case PACKS -> {
                 int y = top;
@@ -205,6 +231,7 @@ public final class BedrockShadersScreen extends Screen {
                                     rebuild();
                                 })
                         .dimensions(centerX - 100, y, 200, ROW_HEIGHT).build());
+                return y + ROW_HEIGHT;
             }
             case SYSTEM -> {
                 int y = top;
@@ -220,8 +247,37 @@ public final class BedrockShadersScreen extends Screen {
                 addDrawableChild(ButtonWidget.builder(Text.translatable("bedrock_shaders.action.reset_all"),
                         button -> ConfigManager.get().resetToDefaults())
                         .dimensions(centerX - 100, y, 200, ROW_HEIGHT).build());
+                return y + ROW_HEIGHT;
             }
         }
+        return top;
+    }
+
+    /** How far the current page can be scrolled before its last row leaves the footer. */
+    private int maxScroll() {
+        int available = contentBottom() - TOP;
+        return Math.max(0, contentHeight - available);
+    }
+
+    private void clampScroll() {
+        int max = maxScroll();
+        if (scroll > max) {
+            scroll = max;
+        }
+        if (scroll < 0) {
+            scroll = 0;
+        }
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (maxScroll() <= 0) {
+            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        }
+        scroll -= (int) Math.signum(verticalAmount) * SCROLL_STEP;
+        clampScroll();
+        rebuild();
+        return true;
     }
 
     private void applyPreset(QualityPreset preset) {
@@ -260,6 +316,19 @@ public final class BedrockShadersScreen extends Screen {
                         : Text.translatable("bedrock_shaders.status.fallback"),
                 assets.parsedFiles(), frame.fogId()).getString();
         context.drawCenteredTextWithShadow(textRenderer, Text.literal(status), width / 2, height - 44, 0x9BB7D4);
+        // Tell the user there is more below (and above) when the page does not fit.
+        if (maxScroll() > 0) {
+            if (scroll > 0) {
+                context.drawCenteredTextWithShadow(textRenderer,
+                        Text.translatable("bedrock_shaders.hint.scroll_up"),
+                        width / 2, 34, 0x8899AA);
+            }
+            if (scroll < maxScroll()) {
+                context.drawCenteredTextWithShadow(textRenderer,
+                        Text.translatable("bedrock_shaders.hint.scroll_down"),
+                        width / 2, contentBottom() - 10, 0x8899AA);
+            }
+        }
         if (ConfigManager.get().isDirty()) {
             context.drawTextWithShadow(textRenderer,
                     Text.translatable("bedrock_shaders.hint.unsaved"), 6, height - 52, 0xE0C060);

@@ -75,5 +75,7 @@
   "bedrock_shaders.import.kind.data": "deferred rendering data",
   "bedrock_shaders.import.kind.resource": "resource pack (no rendering data)",
   "bedrock_shaders.import.kind.behaviour": "behaviour pack",
-  "bedrock_shaders.import.kind.unsupported": "unsupported archive"
+  "bedrock_shaders.import.kind.unsupported": "unsupported archive",
+  "bedrock_shaders.hint.scroll_up": "▲ scroll up for more",
+  "bedrock_shaders.hint.scroll_down": "▼ scroll down for more"
 }

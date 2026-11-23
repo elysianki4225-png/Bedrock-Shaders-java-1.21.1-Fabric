@@ -128,9 +128,16 @@ public final class FrameContext {
         thunderGradient = snapshot.thunderLevel(tickDelta);
         skyDarken = snapshot.skyDarken(tickDelta);
         eyesInWater = false;
+<<<<<<< HEAD
         String dimension = snapshot.dimensionKey();
         nether = "minecraft:the_nether".equals(dimension);
         end = "minecraft:the_end".equals(dimension);
+=======
+        // Cheap enum-backed checks instead of formatting a dimension id every frame.
+        nether = snapshot.inNether();
+        end = snapshot.inEnd();
+        String dimension = nether ? "minecraft:the_nether" : end ? "minecraft:the_end" : "minecraft:overworld";
+>>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
 
         biomeId = snapshot.biomeId(cameraX, cameraY, cameraZ);
         fogId = BiomeMapper.fogIdFor(biomeId, dimension,
