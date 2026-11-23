@@ -1,16 +1,35 @@
-# Bedrock Shaders — Minecraft Java Edition 1.21.1 (Fabric)
+# Bedrock Shaders — Minecraft Java Edition 1.21.1 (Fabric · Quilt · Forge · NeoForge)
+
+**English** · [简体中文](README.zh_cn.md)
 
 Brings the look of Minecraft **Bedrock Edition's Deferred Rendering Pipeline** to
-**Java Edition 1.21.1** on Fabric: the data-driven Bedrock lighting/atmosphere/fog/
-colour-grading system, PBR-style water, Bedrock sky scattering, and a post-processing
-chain (SSAO, bloom, god rays, tone mapping).
+**Java Edition 1.21.1** on all four major loaders: the data-driven Bedrock
+lighting/atmosphere/fog/colour-grading system, PBR-style water, Bedrock sky scattering,
+and a post-processing chain (SSAO, bloom, god rays, tone mapping).
 
-Built jar: [`dist/bedrock-shaders-1.0.0.jar`](dist/bedrock-shaders-1.0.0.jar) (rebuilt by CI on every push).
+## Download
+
+Each loader has its own jar. Every file name states which loader it is for, so a folder
+holding all four stays unambiguous.
+
+| Loader | Download | File name | Requires | Status |
+| --- | --- | --- | --- | --- |
+| **Fabric** | [**bedrock-shaders-fabric-1.0.0.jar**](dist/bedrock-shaders-fabric-1.0.0.jar) | `bedrock-shaders-fabric-1.0.0.jar` | Fabric Loader ≥ 0.16 + Fabric API ≥ 0.100 | **Primary target** |
+| **Quilt** | [**bedrock-shaders-quilt-1.0.0.jar**](dist/bedrock-shaders-quilt-1.0.0.jar) | `bedrock-shaders-quilt-1.0.0.jar` | Quilt Loader ≥ 0.30 + Fabric API ≥ 0.100 | **Primary target** |
+| Forge | [bedrock-shaders-forge-1.0.0.jar](dist/bedrock-shaders-forge-1.0.0.jar) | `bedrock-shaders-forge-1.0.0.jar` | Forge 52.0.28 (1.21.1) | Maintained, secondary |
+| NeoForge | [bedrock-shaders-neoforge-1.0.0.jar](dist/bedrock-shaders-neoforge-1.0.0.jar) | `bedrock-shaders-neoforge-1.0.0.jar` | NeoForge 21.1.119 (1.21.1) | Maintained, secondary |
+
+Sources jar (all loaders, for reference): [bedrock-shaders-fabric-1.0.0-sources.jar](dist/bedrock-shaders-fabric-1.0.0-sources.jar)
+
+**Fabric and Quilt are the maintained, optimised targets.** The Forge and NeoForge ports
+compile and are updated alongside them, but they are built non-blocking in CI while their
+packaging is finished, so a loader-only failure does not mark the branch red.
 
 ## Install
 
-1. Install **Fabric Loader ≥ 0.16** for Minecraft 1.21.1 and **Fabric API ≥ 0.100**.
-2. Drop `dist/bedrock-shaders-1.0.0.jar` into `.minecraft/mods/`.
+1. Install your loader for Minecraft 1.21.1 (Fabric/Quilt also need Fabric API: Quilt
+   Loader loads it natively and there is no Quilted Fabric API release for 1.21.1).
+2. Drop the matching jar from `dist/` into `.minecraft/mods/`.
 3. Launch. The mod generates its runtime shader pack into `config/bedrock-shaders/pack`
    and enables it automatically.
 
@@ -46,6 +65,27 @@ Then either restart, run `/bedrock import`, or press **Rescan folder** in the pa
 4. enables it in the resource-pack stack (**appended last**, so any pack you placed above
    still wins) and reloads resources — no restart needed.
 
+### Directional tuning for well-known Bedrock packs
+
+Bedrock shader packs are **data only** — they ship fog/lighting/atmosphere/colour-grading
+JSON and no code. So a pack cannot look like its Bedrock original on Java unless the
+renderer reproduces the look its author intended. When an imported pack is recognised as
+belonging to a known family, the renderer applies that family's tuning on top of the pack's
+data:
+
+| Family | Recognised names | What is tuned |
+| --- | --- | --- |
+| **Newb** | Newb X Legacy, Golden Legacy, Glow Legacy, X LMI, Renewed, Reforged, Nostalgia, Dawn, Ale, Dragon Complementary | Haze reaches further, denser and colder underwater fog, warmer (golden) sunlight, slightly lifted saturation and gentler contrast, bloom and caustics nudged up — the signature Newb look |
+| YSS | YSS, YSS Special Edition | Crisper water reflections, slightly stronger sun |
+| Eternity | Eternity | Cinematic: heaver bloom, stronger reflections and god rays, more contrast |
+| Solas / Harmonics | Solas, Harmonics, Harmony | Cleaner, blue-hour leaning, lighter haze |
+| Generic | everything else | The mod's Bedrock-faithful defaults, untouched |
+
+Detection reads the archive name, the pack's manifest name and its description, so
+`Newb-X-Legacy-v1.2.mcpack` and a nameless pack whose manifest says "Newb X LMI" both land
+on the Newb family. The recognised family is shown as a badge in the pack manager, reported
+by `/bedrock debug`, and can be switched off entirely under `Packs → Shader family tuning`.
+
 Per-pack state is tracked in `bedrock-shaders/index.json`, so unchanged archives are not
 re-imported and deleted packs are unregistered. The manager screen can toggle, delete and
 open the folder, and it links to vanilla's own resource-pack screen.
@@ -53,6 +93,21 @@ open the folder, and it links to vanilla's own resource-pack screen.
 **What is not supported:** binary RenderDragon shaders (`*.material.bin`) — those are
 compiled pipeline binaries with no Java Edition equivalent. Only the data-driven Deferred
 Rendering JSON is imported.
+
+## One renderer, four loaders
+
+The renderer itself (`BedrockPipeline`, `FrameContext`, `BedrockAssetLibrary`, the
+`.mcpack` importer, the GUI and the command) is plain Java with no Minecraft import.
+Each platform supplies the same three small pieces:
+
+- a `ClientSnapshot` (camera, biome, weather, water surface) — Yarn names on Fabric/Quilt,
+  official names on Forge/NeoForge;
+- a `ResourceSource` (`open` + `list`) over that loader's resource manager;
+- three mixins on the same three vanilla methods (`GameRenderer#renderLevel`,
+  `LevelRenderer#renderSky`, `ShaderInstance#apply` / `ShaderProgram#bind`).
+
+Quilt reuses the Fabric code byte-for-byte: Quilt Loader loads Fabric mods natively, so
+the Quilt artifact only swaps `fabric.mod.json` for `quilt.mod.json`.
 
 ## How it works
 
@@ -102,10 +157,13 @@ samplers a program declares are exactly those the vanilla render layer binds.
 shadersrc/core|include      Bedrock GLSL (authored, #version 150)
 src/main/java               common: config model, Bedrock asset model (curves, lighting, fog, water)
 src/client/java/.../pack    .mcpack importer, pack registry, resource-pack activation
-src/client/java             client: pipeline, uniforms, mixins, GUI, command, asset library
+src/client/java             Fabric client: pipeline, uniforms, Yarn mixins, GUI, command
 src/main/resources/assets    generated GLSL + Bedrock JSON samples + lang + icon
+src/quilt/resources         quilt.mod.json (the Quilt jar is the Fabric jar re-metadata'd)
+loaders/common-official     Mojang-mapped client code shared by Forge and NeoForge
+loaders/forge|neoforge      independent Gradle builds + their entrypoints and metadata
 verification/               offline shader/asset/pack validators, CI entry points
-dist/                       jar published by CI
+dist/                       jars published by CI
 ```
 
 ## Licensing note

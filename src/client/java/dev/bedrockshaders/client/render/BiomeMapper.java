@@ -1,26 +1,33 @@
 package dev.bedrockshaders.client.render;
 
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-import net.minecraft.world.biome.Biome;
+import java.util.Locale;
 
 /**
  * Maps a Minecraft Java biome to the closest Bedrock fog identifier.
  *
- * <p>Bedrock identifies fog by {@code minecraft:fog_<name>}; the {@link dev.bedrockshaders.client.assets.BedrockAssetLibrary}
- * binds those ids to the matching Mojang sample files. Java biome names are mostly
- * identical, so the mapping is primarily a prefix/alias table with fallbacks by
- * climate and dimension for modded biomes.</p>
+ * <p>Bedrock identifies fog by {@code minecraft:fog_<name>}; the
+ * {@link dev.bedrockshaders.client.assets.BedrockAssetLibrary} binds those ids to the
+ * matching Bedrock JSON. Java biome ids are mostly identical, so the mapping is a lookup
+ * table with climate fallbacks for modded biomes.</p>
+ *
+ * <p>Deliberately Minecraft-free: it takes plain strings and climate values so the same
+ * logic serves Fabric, Quilt, Forge and NeoForge (whose biome classes differ).</p>
  */
 public final class BiomeMapper {
     private BiomeMapper() {
     }
 
-    public static String fogIdFor(ClientWorld world, RegistryEntry<Biome> biomeEntry, BlockPos pos) {
-        if (world.getRegistryKey() == World.NETHER) {
-            String path = pathOf(biomeEntry);
+    /**
+     * @param biomeId    Java biome id, e.g. {@code minecraft:plains} (may be empty)
+     * @param dimensionKey dimension id, e.g. {@code minecraft:the_nether}
+     * @param temperature biome temperature, used for modded biomes
+     * @param hasPrecipitation whether the biome rains/snows
+     */
+    public static String fogIdFor(String biomeId, String dimensionKey, float temperature, boolean hasPrecipitation) {
+        String dimension = dimensionKey == null ? "" : dimensionKey;
+        String path = pathOf(biomeId);
+
+        if ("minecraft:the_nether".equals(dimension)) {
             if (path.contains("soul")) {
                 return "minecraft:fog_soulsand_valley";
             }
@@ -35,26 +42,28 @@ public final class BiomeMapper {
             }
             return "minecraft:fog_hell";
         }
-        if (world.getRegistryKey() == World.END) {
+        if ("minecraft:the_end".equals(dimension)) {
             return "minecraft:fog_the_end";
         }
 
-        String path = pathOf(biomeEntry);
         if (path.isEmpty()) {
-            return climateFallback(world, pos);
+            return climateFallback(temperature, hasPrecipitation);
         }
         String mapped = mapOverworld(path);
         if (mapped != null) {
             return mapped;
         }
-        return climateFallback(world, pos);
+        return climateFallback(temperature, hasPrecipitation);
     }
 
-    private static String pathOf(RegistryEntry<Biome> biomeEntry) {
-        if (biomeEntry == null || biomeEntry.getKey().isEmpty()) {
+    /** Splits {@code minecraft:plains} into {@code plains}; tolerates a bare path. */
+    private static String pathOf(String biomeId) {
+        if (biomeId == null || biomeId.isEmpty()) {
             return "";
         }
-        return biomeEntry.getKey().get().getValue().getPath();
+        String id = biomeId.toLowerCase(Locale.ROOT);
+        int colon = id.indexOf(':');
+        return colon >= 0 ? id.substring(colon + 1) : id;
     }
 
     private static String mapOverworld(String path) {
@@ -80,21 +89,19 @@ public final class BiomeMapper {
             case "beach", "stony_shore" -> "minecraft:fog_beach";
             case "mushroom_fields" -> "minecraft:fog_mushroom_island";
             case "savanna", "savanna_plateau", "windswept_savanna" -> "minecraft:fog_savanna";
-            case "windswept_hills", "windswept_gravelly_hills", "stony_peaks", "stony_shore2" -> "minecraft:fog_extreme_hills";
+            case "windswept_hills", "windswept_gravelly_hills", "stony_peaks" -> "minecraft:fog_extreme_hills";
             default -> null;
         };
     }
 
-    private static String climateFallback(ClientWorld world, BlockPos pos) {
-        Biome biome = world.getBiome(pos).value();
-        float temperature = biome.getTemperature();
+    private static String climateFallback(float temperature, boolean hasPrecipitation) {
         if (temperature <= 0.15F) {
             return "minecraft:fog_ice_plains";
         }
         if (temperature >= 0.95F) {
             return "minecraft:fog_desert";
         }
-        if (biome.hasPrecipitation()) {
+        if (hasPrecipitation) {
             return "minecraft:fog_forest";
         }
         return "minecraft:fog_plains";

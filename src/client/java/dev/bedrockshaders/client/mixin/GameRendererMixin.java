@@ -25,7 +25,7 @@ public abstract class GameRendererMixin {
             return;
         }
         FrameContext context = FrameContext.get();
-        context.beginFrame(client);
+        context.beginFrame(dev.bedrockshaders.client.FabricClientSnapshot.get());
         BedrockPipeline.get().ensureInitialized();
         if (client.world != null && client.getCameraEntity() != null && context.isActive()) {
             // Mirrors the view matrix vanilla builds for the world pass, including hurt tilt.
@@ -46,7 +46,7 @@ public abstract class GameRendererMixin {
             return;
         }
         if (client.world != null && pipeline.isReady() && pipeline.wantsEffects()) {
-            pipeline.renderEffects(client, context);
+            pipeline.renderEffects(context);
         }
         context.endFrame();
     }

@@ -31,6 +31,9 @@ jobs:
           npm install --no-audit --no-fund
           node validate_shaders.mjs
 
+      - name: Validate shared loader source set
+        run: python3 verification/check_loader_sources.py
+
       - name: Validate Bedrock assets
         run: python3 verification/validate_assets.py
 
@@ -39,6 +42,13 @@ jobs:
 
       - name: Test .mcpack importer + localisation
         run: python3 verification/test_importer.py
+
+      - name: Test shader family detection
+        run: python3 verification/test_families.py
+
+      # The READMEs are the download page; this checks their links without a build.
+      - name: Validate README download links
+        run: python3 verification/check_readme_links.py
 
       - name: Build with Gradle
         id: gradle
@@ -55,10 +65,10 @@ jobs:
           SHA: ${{ github.sha }}
         run: python3 verification/report_failure.py
 
-      - name: Upload mod jar
+      - name: Upload mod jars (Fabric + Quilt)
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-shaders-jar
+          name: bedrock-shaders-jars-fabric-quilt
           path: build/libs/*.jar
           if-no-files-found: error
 
@@ -69,7 +79,13 @@ jobs:
         run: |
           set -e
           mkdir -p dist
-          rm -f dist/*.jar
+          # Only replace the Fabric/Quilt jars this job produced. The loader jobs publish
+          # forge/neoforge jars into the same folder from other runners, so a blanket
+          # `dist/bedrock-shaders-*.jar` wipe would delete their commits on every run.
+          # Clean the current scheme for the two jars built here, plus the pre-rename names.
+          rm -f dist/bedrock-shaders-fabric-*.jar dist/bedrock-shaders-quilt-*.jar \
+                dist/bedrock-shaders-1.0.0.jar dist/bedrock-shaders-quilt-1.0.0.jar \
+                dist/bedrock-shaders-1.0.0-sources.jar
           cp build/libs/*.jar dist/
           if [ -z "$(git status --porcelain dist)" ]; then
             echo "jar unchanged"
@@ -79,4 +95,201 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist
           git commit -m "ci: publish jar [skip ci]"
+          # The loader jobs commit their own jars to dist/ concurrently; rebase before
+          # pushing so their commit is not lost to a non-fast-forward rejection.
+          git pull --rebase --autostash
           git push
+
+      # Inspect what this run published. dist/ is committed, so running this before the
+      # build would grade the previous run's jars instead of the ones just written.
+      - name: Validate published jars in dist/
+        if: "success() && github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'ci: publish')"
+        run: |
+          if compgen -G "dist/*.jar" > /dev/null; then
+            python3 verification/check_dist.py
+          else
+            echo "dist/ is empty; nothing published yet"
+          fi
+
+  # Forge and NeoForge are independent Gradle builds (loaders/<loader>) so their
+  # toolchains never leak into the Fabric build. They are compiled here, which is the
+  # only place the official-mapped port is actually type-checked.
+  loader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - loader: neoforge
+            task: build
+          - loader: forge
+            task: build
+    # Fabric and Quilt are the priority loads; the Forge/NeoForge ports are built on every
+    # push but do not gate the branch while they are being stabilised.
+    continue-on-error: true
+    name: build (${{ matrix.loader }})
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build ${{ matrix.loader }}
+        id: gradle
+        continue-on-error: true
+        working-directory: loaders/${{ matrix.loader }}
+        run: |
+          chmod +x ../../gradlew
+          ../../gradlew --version > gradle-version.log 2>&1
+          status=0
+          ../../gradlew build --stacktrace --console=plain > build.log 2>&1 || status=$?
+          echo "build exit: $status" >> build.log
+          echo "=== jars produced ===" >> build.log
+          find build -name '*.jar' -printf '%p %s bytes\n' >> build.log 2>&1 || true
+          echo "=== first error lines ===" >> build.log
+          grep -nE "error:|FAILURE:|What went wrong|A problem occurred|Could not|Unsupported class|not found" build.log | head -40 >> build.log 2>&1 || true
+          tail -c 3000 build.log || true
+          # Propagate the real status. This step is continue-on-error, so the job still
+          # does not gate the branch, but it must report failure: swallowing it made a
+          # broken loader build look green while the locator fell back to a toolchain jar.
+          exit $status
+
+      - name: Write ${{ matrix.loader }} build summary
+        if: always()
+        working-directory: loaders/${{ matrix.loader }}
+        run: |
+          set +e
+          {
+            echo "loader: ${{ matrix.loader }}"
+            echo "run: $GITHUB_RUN_ID  sha: $GITHUB_SHA"
+            echo
+            echo "=== archivesName / version ==="
+            grep -nE 'archivesName|^version' build.gradle
+            echo
+            echo "=== tasks that ran ==="
+            grep -E '^> Task' build.log | tail -40
+            echo
+            echo "=== every jar under build/ ==="
+            find build -name '*.jar' -printf '%p %s bytes\n' | sort
+            echo
+            echo "=== every file under build/libs ==="
+            find build/libs -maxdepth 2 -printf '%p %s bytes\n' 2>/dev/null | sort
+            echo
+            echo "=== javac errors (with symbol/location lines) ==="
+            grep -nE -A3 "error:" build.log | head -120
+            echo
+            echo "=== build.log tail ==="
+            tail -60 build.log
+          } > build-summary.txt 2>&1
+          cat build-summary.txt
+
+      # Actions log blobs are unreadable from the maintainer's sandbox, and a jar that
+      # lands outside build/libs is invisible to the locator. Always upload the summary.
+      - name: Upload ${{ matrix.loader }} build summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.loader }}-build-summary
+          if-no-files-found: warn
+          path: |
+            loaders/${{ matrix.loader }}/build-summary.txt
+            loaders/${{ matrix.loader }}/build.log
+
+      - name: Locate ${{ matrix.loader }} jar
+        if: success()
+        id: locate
+        working-directory: loaders/${{ matrix.loader }}
+        run: |
+          set -e
+          echo "--- tasks that ran ---"
+          grep -E '^> Task' build.log | tail -30 || true
+          echo "--- jars in the build tree ---"
+          find build -maxdepth 4 -name '*.jar' -printf '%p %s bytes\n' | sort || true
+          # Exclude toolchain intermediates (neoform/mcp/caches produce multi-MB merged
+          # Minecraft jars) and prefer the project's own archive name.
+          jar=$(find build -name "bedrock-shaders-${{ matrix.loader }}-*.jar" \
+                   ! -name '*-sources.jar' -print -quit)
+          if [ -z "$jar" ]; then
+            echo "::error::The ${{ matrix.loader }} build produced no bedrock-shaders-${{ matrix.loader }}-*.jar"
+            echo "--- every jar under loaders/${{ matrix.loader }}/build ---"
+            find build -name '*.jar' -printf '%p %s bytes\n' | sort | head -40 || true
+            exit 1
+          fi
+          echo "jar=$jar" >> "$GITHUB_OUTPUT"
+
+      - name: Upload ${{ matrix.loader }} jar
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-shaders-${{ matrix.loader }}
+          path: loaders/${{ matrix.loader }}/${{ steps.locate.outputs.jar }}
+          if-no-files-found: error
+
+
+
+      # Mirror the Fabric job's dist/ publishing so all four jars are downloadable from
+      # the repository itself (blob storage is unreachable in the maintainer's sandbox).
+      - name: Publish ${{ matrix.loader }} jar to dist/
+        if: "success() && github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'ci: publish')"
+        working-directory: loaders/${{ matrix.loader }}
+        run: |
+          set -e
+          mkdir -p ../../dist
+          # This step runs inside loaders/<loader>, so dist/ is two levels up.
+          # Only the project's own archive is publishable: the toolchain also emits
+          # multi-MB merged Minecraft jars (build/*merged*.jar, neoform caches). Picking
+          # one of those copied it into dist/, where .gitignore dropped it, and the job
+          # still reported success with no jar published. Match the loader name exactly.
+          jar=$(find build -name "bedrock-shaders-${{ matrix.loader }}-*.jar" \
+                  ! -name '*-sources.jar' -print -quit)
+          if [ -z "$jar" ]; then
+            echo "::error::no bedrock-shaders-${{ matrix.loader }}-*.jar to publish"
+            find build -name '*.jar' -printf '%p %s bytes\n' | head -20 || true
+            exit 1
+          fi
+          echo "publishing $jar"
+          cp "$jar" ../../dist/
+          cd ../..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist
+          if git diff --cached --quiet; then echo "jar unchanged"; exit 0; fi
+          git commit -m "ci: publish ${{ matrix.loader }} jar [skip ci]"
+          git pull --rebase --autostash
+          git push
+
+      # Actions logs and artifacts are both unreachable from the maintainer's sandbox, so a
+      # failing loader job reports through an issue: that is the only readable channel.
+      # This step sits last so it also covers a build that produced nothing publishable.
+      - name: Publish ${{ matrix.loader }} diagnostics
+        if: failure() && !cancelled()
+        working-directory: loaders/${{ matrix.loader }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "workflow run: $GITHUB_RUN_ID"
+            echo
+            echo "### javac errors with context"
+            echo '```'
+            grep -nE "error:|symbol:|location:" build.log | head -80 || true
+            echo '```'
+            echo "### build summary"
+            echo '```'
+            cat build-summary.txt 2>/dev/null || echo "no build-summary.txt"
+            echo '```'
+            echo "### every file produced under build/"
+            echo '```'
+            find build -type f -printf '%p %s bytes\n' 2>/dev/null | sort | head -60 || true
+            echo '```'
+          } > /tmp/report.md
+          gh issue create --repo $GITHUB_REPOSITORY \
+            --title "${{ matrix.loader }} build failure $GITHUB_RUN_ID" \
+            --body-file /tmp/report.md || true
+

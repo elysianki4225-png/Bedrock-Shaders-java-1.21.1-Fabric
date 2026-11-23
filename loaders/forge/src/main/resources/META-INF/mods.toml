@@ -1,0 +1,33 @@
+modLoader = "javafml"
+loaderVersion = "[52,)"
+license = "MIT"
+issueTrackerURL = "https://github.com/elysianki4225-png/Bedrock-Shaders-java-1.21.1-Fabric/issues"
+
+[[mods]]
+modId = "bedrock_shaders"
+version = "${version}"
+displayName = "Bedrock Shaders"
+authors = "Bedrock Shaders contributors"
+description = '''
+Brings Minecraft Bedrock's Deferred Rendering Pipeline look to Minecraft: Java Edition:
+PBR-style water, volumetric fog, Bedrock sky scattering, SSAO, screen-space reflections,
+god rays, bloom and Bedrock colour grading. Imports Bedrock .mcpack shader packs.
+'''
+logoFile = "assets/bedrock_shaders/icon.png"
+
+[[dependencies.bedrock_shaders]]
+modId = "forge"
+mandatory = true
+versionRange = "[52,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.bedrock_shaders]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.21.1,1.21.2)"
+ordering = "NONE"
+side = "BOTH"
+
+[[mixins]]
+config = "bedrock_shaders.official.mixins.json"

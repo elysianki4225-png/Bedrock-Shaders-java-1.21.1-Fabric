@@ -1,0 +1,11 @@
+// Independent Gradle build: run from the repository root as
+//   ./gradlew -p loaders/forge build
+pluginManagement {
+    repositories {
+        maven { name = 'MinecraftForge'; url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'bedrock-shaders-forge'

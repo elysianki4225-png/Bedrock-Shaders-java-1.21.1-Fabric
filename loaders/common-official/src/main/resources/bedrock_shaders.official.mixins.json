@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "dev.bedrockshaders.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "GameRendererMixin",
+    "LevelRendererMixin",
+    "ShaderInstanceMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

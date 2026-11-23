@@ -91,7 +91,8 @@ public final class BedrockShadersCommand {
                                     + " moon=" + String.format("%.2f", frame.moonIntensity())
                                     + " time=" + String.format("%.2f", frame.sunAngle())
                                     + " biome=" + frame.biomeId()
-                                    + " pack=" + (frame.activePackName().isEmpty() ? "builtin" : frame.activePackName())));
+                                    + " pack=" + (frame.activePackName().isEmpty() ? "builtin" : frame.activePackName())
+                                    + " family=" + frame.shaderFamily().id));
                     return 1;
                 }))
                 .then(literal("fog").executes(ctx -> {

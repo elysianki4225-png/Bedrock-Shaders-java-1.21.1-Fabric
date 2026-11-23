@@ -10,15 +10,6 @@ import dev.bedrockshaders.client.assets.BedrockAssetLibrary;
 import dev.bedrockshaders.client.pack.PackRegistry;
 import dev.bedrockshaders.util.ColorUtil;
 import dev.bedrockshaders.util.Mth;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
-import net.minecraft.block.enums.CameraSubmersionType;
-import net.minecraft.world.biome.Biome;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -81,6 +72,9 @@ public final class FrameContext {
     private float fogEnd;
 
     private String fogId = "minecraft:fog_plains";
+    /** Shader family of the active pack, sampled once per frame. */
+    private dev.bedrockshaders.config.ShaderFamily family =
+            dev.bedrockshaders.config.ShaderFamily.GENERIC;
     private FogSettings fogSettings = new FogSettings();
     private LightingSettings lightingSettings = new LightingSettings();
     private AtmosphereSettings atmosphereSettings = new AtmosphereSettings();
@@ -97,33 +91,33 @@ public final class FrameContext {
         return frameId;
     }
 
-    /** Called once at the start of {@code GameRenderer.renderWorld}. */
-    public void beginFrame(MinecraftClient client) {
+    /**
+     * Called once at the start of the world pass. All game access goes through
+     * {@link ClientSnapshot}, which each loader implements against its own mappings.
+     */
+    public void beginFrame(ClientSnapshot snapshot) {
         frameId++;
-        ClientWorld world = client.world;
-        ClientPlayerEntity player = client.player;
-        active = world != null && player != null;
+        active = snapshot != null && snapshot.inWorld();
         inWorld = active;
         if (!active) {
             return;
         }
 
-        tickDelta = client.getRenderTickCounter().getTickDelta(false);
-
-        Vec3d cameraPos = client.gameRenderer.getCamera().getPos();
-        cameraX = cameraPos.x;
-        cameraY = cameraPos.y;
-        cameraZ = cameraPos.z;
-        framebufferWidth = client.getWindow().getFramebufferWidth();
-        framebufferHeight = client.getWindow().getFramebufferHeight();
-        viewDistanceBlocks = client.options.getViewDistance().getValue() * 16.0F;
-        // GameRenderer#getFov is private; derive the vertical FOV from the projection matrix instead.
+        tickDelta = snapshot.tickDelta();
+        cameraX = snapshot.cameraX();
+        cameraY = snapshot.cameraY();
+        cameraZ = snapshot.cameraZ();
+        framebufferWidth = snapshot.framebufferWidth();
+        framebufferHeight = snapshot.framebufferHeight();
+        viewDistanceBlocks = snapshot.viewDistanceBlocks();
+        // GameRenderer#getFov is private in every mapping; derive the vertical FOV from
+        // the projection matrix that the world pass hands to the mixin.
         fov = projectionMatrix == null ? 70.0F
                 : (float) Math.toDegrees(2.0 * Math.atan(1.0 / Math.max(projectionMatrix.m11(), 1.0E-4)));
 
         // Sky time: Bedrock's lighting curves are keyed on a normalised 0..1 day.
-        long timeOfDay = world.getTimeOfDay();
-        sunAngle = world.getSkyAngle(tickDelta);
+        long timeOfDay = snapshot.dayTime();
+        sunAngle = snapshot.skyAngle(tickDelta);
         float celestialAngle = sunAngle * (float) (Math.PI * 2.0);
         worldTimeSeconds = (float) (timeOfDay % 24000L) * 0.05F + tickDelta * 0.05F;
         sunDirection.set(
@@ -133,17 +127,19 @@ public final class FrameContext {
         ).normalize();
         moonDirection.set(-sunDirection.x, -sunDirection.y, -sunDirection.z).normalize();
 
-        rainGradient = world.getRainGradient(tickDelta);
-        thunderGradient = world.getThunderGradient(tickDelta);
-        skyDarken = client.gameRenderer.getSkyDarkness(tickDelta);
+        rainGradient = snapshot.rainLevel(tickDelta);
+        thunderGradient = snapshot.thunderLevel(tickDelta);
+        skyDarken = snapshot.skyDarken(tickDelta);
         eyesInWater = false;
-        nether = world.getRegistryKey() == World.NETHER;
-        end = world.getRegistryKey() == World.END;
+        // Cheap enum-backed checks instead of formatting a dimension id every frame.
+        nether = snapshot.inNether();
+        end = snapshot.inEnd();
+        String dimension = nether ? "minecraft:the_nether" : end ? "minecraft:the_end" : "minecraft:overworld";
 
-        BlockPos cameraBlockPos = BlockPos.ofFloored(cameraX, cameraY, cameraZ);
-        RegistryEntry<Biome> biomeEntry = world.getBiome(cameraBlockPos);
-        fogId = BiomeMapper.fogIdFor(world, biomeEntry, cameraBlockPos);
-        biomeId = biomeEntry.getKey().map(key -> key.getValue().toString()).orElse("");
+        biomeId = snapshot.biomeId(cameraX, cameraY, cameraZ);
+        fogId = BiomeMapper.fogIdFor(biomeId, dimension,
+                snapshot.biomeTemperature(cameraX, cameraY, cameraZ),
+                snapshot.biomeHasPrecipitation(cameraX, cameraY, cameraZ));
         BedrockAssetLibrary assets = BedrockAssetLibrary.get();
         assets.ensureLoaded();
         fogSettings = assets.fog(fogId);
@@ -159,19 +155,33 @@ public final class FrameContext {
             sunIntensity = 0.0F;
             moonIntensity = 0.25F;
         }
+        // Sample the family before colouring: litColors() and the fog window both use it.
+        family = ConfigManager.get().config().usePackFamilyTuning
+                ? PackRegistry.get().activeFamily()
+                : dev.bedrockshaders.config.ShaderFamily.GENERIC;
+
         litColors();
 
+        // Final light strength, scaled by the family's intent (Newb runs a touch brighter).
+        if (family.sunIntensityScale != 1.0F) {
+            sunIntensity = Mth.clamp(sunIntensity * family.sunIntensityScale, 0.0F, 1.0F);
+        }
+
         // Water detection (used by terrain caustics + water waves).
-        underwater = client.gameRenderer.getCamera().getSubmersionType() == CameraSubmersionType.WATER;
+        underwater = snapshot.cameraInWater();
         eyesInWater = underwater;
 
         // Fog window in blocks (Bedrock "render" distance_type vs "fixed").
         FogSettings fog = fogSettings;
         float density = Math.max(0.05F, ConfigManager.get().config().fogDensity);
+
+        // Recognised Bedrock shader families ship data, not code, so their look only
+        // survives here if the renderer reproduces it. The Newb family in particular is
+        // known for haze that reaches further and a denser blue underwater view.
         if (underwater && fog.hasWater) {
-            fogStart = fog.waterStart;
-            fogEnd = fog.waterEnd;
-            fogDensity = density * 1.25F;
+            fogStart = fog.waterStart / family.underwaterFogScale;
+            fogEnd = Math.max(fog.waterEnd / family.underwaterFogScale, fogStart + 1.0F);
+            fogDensity = density * 1.25F * family.fogDensityScale;
         } else {
             float distance = viewDistanceBlocks;
             if (fog.hasAir && "render".equals(fog.airDistanceType)) {
@@ -184,11 +194,18 @@ public final class FrameContext {
                 fogStart = distance * 0.92F;
                 fogEnd = distance;
             }
-            fogDensity = density;
+            fogDensity = density * family.fogDensityScale;
             if (rainGradient > 0.01F && fog.hasWeather) {
                 fogStart = Mth.lerp(rainGradient * 0.5F, fogStart, fog.weatherStart * distance);
                 fogEnd = Mth.lerp(rainGradient * 0.5F, fogEnd, Math.max(fog.weatherEnd * distance, fogEnd * 0.5F));
             }
+        }
+
+        // The family's haze reach: packs like Newb deliberately let fog sit further out,
+        // which is what makes their distance depth read differently from vanilla Bedrock.
+        if (family.fogScale != 1.0F && fogEnd > fogStart) {
+            float span = (fogEnd - fogStart) * family.fogScale;
+            fogEnd = fogStart + Math.max(1.0F, span);
         }
 
         // Underwater surface + water column detection.
@@ -197,9 +214,11 @@ public final class FrameContext {
             waterSurfaceY = (int) Math.floor(cameraY);
             inWaterBody = true;
         } else {
-            waterSurfaceHeight = findWaterSurface(world, cameraBlockPos);
+            waterSurfaceHeight = snapshot.waterSurfaceHeight(
+                    (int) Math.floor(cameraX), (int) Math.floor(cameraY), (int) Math.floor(cameraZ),
+                    (float) Math.floor(cameraY) + 1.0F);
             waterSurfaceY = (int) Math.floor(waterSurfaceHeight);
-            inWaterBody = waterSurfaceHeight > world.getBottomY();
+            inWaterBody = waterSurfaceHeight > snapshot.minBuildHeight();
         }
     }
 
@@ -210,6 +229,13 @@ public final class FrameContext {
         System.arraycopy(horizon, 0, skyHorizon, 0, 3);
         float[] sun = lightingSettings.sunColor.get(sunAngle, sunColor);
         System.arraycopy(sun, 0, sunColor, 0, 3);
+        if (family.sunIntensityScale != 1.0F) {
+            // These packs warm the light rather than brightening every channel equally:
+            // the red channel gains the most, which is what reads as "golden hour".
+            sunColor[0] = Mth.clamp(sunColor[0] * family.sunIntensityScale, 0.0F, 4.0F);
+            sunColor[1] = Mth.clamp(sunColor[1] * (1.0F + (family.sunIntensityScale - 1.0F) * 0.8F), 0.0F, 4.0F);
+            sunColor[2] = Mth.clamp(sunColor[2] * (1.0F + (family.sunIntensityScale - 1.0F) * 0.5F), 0.0F, 4.0F);
+        }
         float[] moon = lightingSettings.moonColor.get(sunAngle, moonColor);
         System.arraycopy(moon, 0, moonColor, 0, 3);
         float[] airFog = ColorUtil.rgbToLinear(new float[] {
@@ -252,22 +278,6 @@ public final class FrameContext {
             skyZenith[0] = 0.045F; skyZenith[1] = 0.03F; skyZenith[2] = 0.09F;
             skyHorizon[0] = 0.16F; skyHorizon[1] = 0.10F; skyHorizon[2] = 0.22F;
         }
-    }
-
-    private float findWaterSurface(ClientWorld world, BlockPos origin) {
-        // Probe a small column around the camera: if we are in an ocean, let the water
-        // pass know where the surface is for caustics and wave shading.
-        int top = Math.min(world.getTopY(), origin.getY() + 24);
-        for (int y = top; y >= world.getBottomY(); y--) {
-            BlockPos pos = new BlockPos(origin.getX(), y, origin.getZ());
-            if (world.getBlockState(pos).getFluidState().isStill()) {
-                return y + 1.0F;
-            }
-            if (world.getBlockState(pos).isSolidBlock(world, pos)) {
-                break;
-            }
-        }
-        return world.getBottomY();
     }
 
     /** Called by the GameRenderer mixin with the exact matrices used for the world pass. */
@@ -339,6 +349,9 @@ public final class FrameContext {
     public float fogStart() { return fogStart; }
     public float fogEnd() { return fogEnd; }
     public String fogId() { return fogId; }
+
+    /** Shader family the active pack belongs to (generic when none is recognised). */
+    public dev.bedrockshaders.config.ShaderFamily shaderFamily() { return family; }
 
     /** Java biome id (e.g. {@code minecraft:plains}) used for the water table lookup. */
     public String biomeId() { return biomeId; }

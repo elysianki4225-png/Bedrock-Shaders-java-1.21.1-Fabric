@@ -75,5 +75,15 @@
   "bedrock_shaders.import.kind.data": "延迟渲染数据",
   "bedrock_shaders.import.kind.resource": "资源包（无渲染数据）",
   "bedrock_shaders.import.kind.behaviour": "行为包",
-  "bedrock_shaders.import.kind.unsupported": "不支持的压缩包"
+  "bedrock_shaders.import.kind.unsupported": "不支持的压缩包",
+  "bedrock_shaders.hint.scroll_up": "▲ 向上滚动查看更多",
+  "bedrock_shaders.hint.scroll_down": "▼ 向下滚动查看更多",
+  "bedrock_shaders.message.welcome": "Bedrock Shaders 已启用。按 %1$s 打开设置，按 %2$s 开关渲染。",
+  "bedrock_shaders.action.undo": "撤销上一次修改",
+  "bedrock_shaders.family.generic": "通用",
+  "bedrock_shaders.family.newb": "Newb 系列",
+  "bedrock_shaders.family.yss": "YSS",
+  "bedrock_shaders.family.eternity": "Eternity",
+  "bedrock_shaders.family.solas": "Solas",
+  "bedrock_shaders.option.family_tuning": "光影系列调校"
 }

@@ -75,5 +75,15 @@
   "bedrock_shaders.import.kind.data": "deferred rendering data",
   "bedrock_shaders.import.kind.resource": "resource pack (no rendering data)",
   "bedrock_shaders.import.kind.behaviour": "behaviour pack",
-  "bedrock_shaders.import.kind.unsupported": "unsupported archive"
+  "bedrock_shaders.import.kind.unsupported": "unsupported archive",
+  "bedrock_shaders.hint.scroll_up": "▲ scroll up for more",
+  "bedrock_shaders.hint.scroll_down": "▼ scroll down for more",
+  "bedrock_shaders.message.welcome": "Bedrock Shaders is active. Press %1$s for settings, %2$s to toggle the renderer.",
+  "bedrock_shaders.action.undo": "Undo last change",
+  "bedrock_shaders.family.generic": "Generic",
+  "bedrock_shaders.family.newb": "Newb family",
+  "bedrock_shaders.family.yss": "YSS",
+  "bedrock_shaders.family.eternity": "Eternity",
+  "bedrock_shaders.family.solas": "Solas",
+  "bedrock_shaders.option.family_tuning": "Shader family tuning"
 }

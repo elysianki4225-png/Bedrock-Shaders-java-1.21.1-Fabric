@@ -5,10 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.bedrockshaders.BedrockShadersMod;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.resource.ResourceManager;
+import dev.bedrockshaders.client.assets.ResourceSource;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -99,8 +96,18 @@ public final class BedrockShaderPack {
     private BedrockShaderPack() {
     }
 
+    /**
+     * Root of the generated pack. Set by each loader's entrypoint, because only the loader
+     * knows its config directory; everything after that step is loader-agnostic.
+     */
+    private static Path packRoot;
+
+    public static void setPackRoot(Path root) {
+        packRoot = root;
+    }
+
     public static Path packDirectory() {
-        return FabricLoader.getInstance().getConfigDir().resolve("bedrock-shaders").resolve("pack");
+        return packRoot;
     }
 
     public static boolean isGenerated() {
@@ -109,7 +116,7 @@ public final class BedrockShaderPack {
     }
 
     /** (Re)generates the pack from the shaders bundled in the jar. */
-    public static boolean ensureGenerated(ResourceManager manager, boolean force) {
+    public static boolean ensureGenerated(ResourceSource manager, boolean force) {
         try {
             Path root = packDirectory();
             if (!force && isGenerated()) {
@@ -264,14 +271,20 @@ public final class BedrockShaderPack {
     }
 
     /** Fabric passes the mod container so the pack can also be registered as built-in. */
-    public static ModContainer modContainer() {
-        return FabricLoader.getInstance().getModContainer(BedrockShadersMod.MOD_ID).orElse(null);
+    /**
+     * Regenerates from whatever {@link ResourceSource} the platform installed last. Each
+     * loader caches its live source here so a config change can rebuild the pack without
+     * waiting for a resource reload.
+     */
+    private static ResourceSource currentSource;
+
+    public static void setCurrentSource(ResourceSource source) {
+        currentSource = source;
     }
 
     public static void regenerateFromCurrentResources() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null) {
-            ensureGenerated(client.getResourceManager(), true);
+        if (currentSource != null) {
+            ensureGenerated(currentSource, true);
         }
     }
 }

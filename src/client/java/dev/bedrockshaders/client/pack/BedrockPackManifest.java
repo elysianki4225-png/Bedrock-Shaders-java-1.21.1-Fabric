@@ -14,8 +14,9 @@ import java.util.Locale;
  * version and whether this is a behaviour pack.
  */
 public record BedrockPackManifest(String name, String uuid, String version, boolean behaviour,
-                                  List<String> modules) {
-    public static final BedrockPackManifest UNKNOWN = new BedrockPackManifest("unknown", "", "1.0.0", false, List.of());
+                                  List<String> modules, String description) {
+    public static final BedrockPackManifest UNKNOWN =
+            new BedrockPackManifest("unknown", "", "1.0.0", false, List.of(), "");
 
     public static BedrockPackManifest parse(String json) {
         try {
@@ -25,6 +26,8 @@ public record BedrockPackManifest(String name, String uuid, String version, bool
             String name = header != null && header.has("name") ? header.get("name").getAsString() : "unknown";
             String uuid = header != null && header.has("uuid") ? header.get("uuid").getAsString() : "";
             String version = header != null ? versionOf(header.get("version")) : "1.0.0";
+            String description = header != null && header.has("description")
+                    ? header.get("description").getAsString() : "";
             boolean behaviour = header != null && header.has("pack_scope")
                     && "world".equalsIgnoreCase(header.get("pack_scope").getAsString())
                     && header.has("is_behaviour_pack") && header.get("is_behaviour_pack").getAsBoolean();
@@ -42,7 +45,8 @@ public record BedrockPackManifest(String name, String uuid, String version, bool
                     }
                 }
             }
-            return new BedrockPackManifest(name, uuid, version, behaviour, List.copyOf(modules));
+            return new BedrockPackManifest(name, uuid, version, behaviour, List.copyOf(modules),
+                    description);
         } catch (RuntimeException e) {
             return UNKNOWN;
         }

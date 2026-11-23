@@ -6,7 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import dev.bedrockshaders.BedrockShadersMod;
-import net.fabricmc.loader.api.FabricLoader;
+import dev.bedrockshaders.GamePaths;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -52,7 +52,7 @@ public final class PackRegistry {
     }
 
     public static Path root() {
-        return FabricLoader.getInstance().getGameDir().resolve("bedrock-shaders");
+        return GamePaths.packFolder();
     }
 
     public static Path importFolder() {
@@ -64,7 +64,7 @@ public final class PackRegistry {
 
     /** Vanilla's pack folder - the only place Minecraft scans for resource packs. */
     public static Path generatedFolder() {
-        return FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+        return GamePaths.resourcePacksFolder();
     }
 
     public static Path indexFile() {
@@ -129,6 +129,7 @@ public final class PackRegistry {
             }
         }
         loaded = true;
+        invalidateActivePackCache();
         BedrockShadersMod.LOGGER.info("Bedrock pack registry: {} imported pack(s) in {}", packs.size(), root());
     }
 
@@ -185,6 +186,7 @@ public final class PackRegistry {
             }
         }
         if (!results.isEmpty()) {
+            invalidateActivePackCache();
             save();
         }
         return results;
@@ -228,14 +230,45 @@ public final class PackRegistry {
         return active;
     }
 
-    /** Name of the first active imported pack, or an empty string when none is loaded. */
-    public synchronized String activePackName() {
+    /**
+     * Cached answer to {@link #activePackName()}.
+     *
+     * <p>The frame path asks for this every frame; recomputing it meant taking the registry
+     * lock and walking the map 60+ times a second. The cache is invalidated whenever the
+     * pack set changes, which is the only time the answer can change.</p>
+     */
+    private volatile String activePackCache = "";
+
+    /**
+     * Family of the first enabled deferred-data pack, cached alongside the name. The frame
+     * path reads this every frame, so it must not walk the pack map.
+     */
+    private volatile dev.bedrockshaders.config.ShaderFamily activeFamilyCache =
+            dev.bedrockshaders.config.ShaderFamily.GENERIC;
+
+    /** Tuning family of the active pack; {@code GENERIC} when none is active. */
+    public dev.bedrockshaders.config.ShaderFamily activeFamily() {
+        return activeFamilyCache;
+    }
+
+    private void invalidateActivePackCache() {
+        String name = "";
+        dev.bedrockshaders.config.ShaderFamily family =
+                dev.bedrockshaders.config.ShaderFamily.GENERIC;
         for (ImportedPack pack : packs.values()) {
             if (pack.enabled && pack.packKind() == BedrockPackKind.DEFERRED_DATA) {
-                return pack.displayName;
+                name = pack.displayName;
+                family = pack.shaderFamily();
+                break;
             }
         }
-        return "";
+        activePackCache = name;
+        activeFamilyCache = family;
+    }
+
+    /** Name of the first active imported pack, or an empty string when none is loaded. */
+    public String activePackName() {
+        return activePackCache;
     }
 
     /**
@@ -252,6 +285,7 @@ public final class PackRegistry {
         ImportedPack pack = packs.get(fileName.toLowerCase(Locale.ROOT));
         if (pack != null) {
             pack.enabled = enabled;
+            invalidateActivePackCache();
             save();
         }
     }
@@ -260,6 +294,7 @@ public final class PackRegistry {
     public synchronized void delete(String fileName) {
         ImportedPack pack = packs.remove(fileName.toLowerCase(Locale.ROOT));
         if (pack != null) {
+            invalidateActivePackCache();
             BedrockPackImporter.deleteRecursively(pack.packDirectory(generatedFolder()));
             try {
                 Files.deleteIfExists(importFolder().resolve(pack.fileName));

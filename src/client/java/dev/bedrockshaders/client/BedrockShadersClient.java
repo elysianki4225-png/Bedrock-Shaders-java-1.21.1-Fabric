@@ -1,6 +1,7 @@
 package dev.bedrockshaders.client;
 
 import dev.bedrockshaders.BedrockShadersMod;
+import dev.bedrockshaders.GamePaths;
 import dev.bedrockshaders.client.assets.BedrockAssetLibrary;
 import dev.bedrockshaders.client.command.BedrockShadersCommand;
 import dev.bedrockshaders.client.pack.BedrockPackImporter;
@@ -42,6 +43,12 @@ public final class BedrockShadersClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // Fabric is the only loader whose paths are resolved here rather than from an
+        // FML service; everything downstream reads GamePaths so the shared pack code stays
+        // free of loader imports.
+        GamePaths.set(FabricLoader.getInstance().getConfigDir(),
+                FabricLoader.getInstance().getGameDir());
+
         ConfigManager.get().load();
 
         // Instance folder that behaves like Iris' shaderpacks folder: drop a .mcpack in
@@ -61,12 +68,37 @@ public final class BedrockShadersClient implements ClientModInitializer {
             }
         }
 
+        BedrockShaderPack.setPackRoot(FabricLoader.getInstance().getConfigDir()
+                .resolve("bedrock-shaders").resolve("pack"));
+
         FabricLoader.getInstance().getModContainer(MOD_ID).ifPresent(container ->
                 packRegistered = ResourceManagerHelper.registerBuiltinResourcePack(
                         Identifier.of(MOD_ID, "runtime_shaders"),
                         container,
                         Text.literal("Bedrock Shaders (runtime)"),
                         ResourcePackActivationType.DEFAULT_ENABLED));
+
+        // The render pipeline only needs three values from the main framebuffer; keep the
+        // game-type dependency here so the pipeline stays loader-agnostic.
+        BedrockPipeline.setMainFramebufferSupplier(() -> {
+            var framebuffer = MinecraftClient.getInstance().getFramebuffer();
+            return new dev.bedrockshaders.client.render.VanillaFramebuffer() {
+                @Override
+                public int framebufferId() {
+                    return framebuffer.fbo;
+                }
+
+                @Override
+                public int width() {
+                    return framebuffer.textureWidth;
+                }
+
+                @Override
+                public int height() {
+                    return framebuffer.textureHeight;
+                }
+            };
+        });
 
         ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new ReloadListener());
 
@@ -88,6 +120,14 @@ public final class BedrockShadersClient implements ClientModInitializer {
             if (pendingPackSync) {
                 pendingPackSync = false;
                 ImportedPackActivator.reload(client);
+            }
+            // One-time hint on first join: without it a new player has no way to know the
+            // menu exists or that a key toggles the renderer.
+            if (pendingWelcome && client.player != null && client.world != null) {
+                pendingWelcome = false;
+                client.player.sendMessage(Text.translatable("bedrock_shaders.message.welcome",
+                        openMenuKey.getBoundKeyLocalizedText(),
+                        toggleKey.getBoundKeyLocalizedText()), false);
             }
             while (openMenuKey.wasPressed()) {
                 if (client.currentScreen == null) {
@@ -115,6 +155,9 @@ public final class BedrockShadersClient implements ClientModInitializer {
     /** Set once the client is far enough through startup for a resource reload. */
     private static boolean pendingPackSync = true;
 
+    /** Cleared after the first join, so the welcome hint shows exactly once per launch. */
+    private static boolean pendingWelcome = true;
+
     public static boolean isPackRegistered() {
         return packRegistered;
     }
@@ -131,9 +174,13 @@ public final class BedrockShadersClient implements ClientModInitializer {
         @Override
         public void reload(ResourceManager manager) {
             ShaderSources.clearCache();
-            BedrockAssetLibrary.get().reload(manager);
+            FabricResourceSource source = new FabricResourceSource(manager);
+            BedrockShaderPack.setCurrentSource(source);
+            ShaderSources.reload(source);
+            BedrockAssetLibrary.get().reload(source);
             BedrockUniforms.invalidate();
-            BedrockShaderPack.ensureGenerated(manager, true);
+            BedrockShaderPack.setCurrentSource(source);
+            BedrockShaderPack.ensureGenerated(source, true);
             ImportedPackActivator.invalidate();
             MinecraftClient client = MinecraftClient.getInstance();
             if (client != null && client.world == null) {

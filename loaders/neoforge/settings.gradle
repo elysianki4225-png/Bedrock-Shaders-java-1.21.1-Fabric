@@ -1,0 +1,13 @@
+// Independent Gradle build: run from the repository root as
+//   ./gradlew -p loaders/neoforge build
+// The version/group values live in this directory's gradle.properties so the project does
+// not depend on the Fabric build's settings.
+pluginManagement {
+    repositories {
+        maven { name = 'NeoForged'; url = 'https://maven.neoforged.net/releases' }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'bedrock-shaders-neoforge'
