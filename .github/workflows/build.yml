@@ -175,7 +175,7 @@ jobs:
           find build -maxdepth 4 -name '*.jar' -printf '%p %s bytes\n' | sort || true
           # Exclude toolchain intermediates (neoform/mcp/caches produce multi-MB merged
           # Minecraft jars) and prefer the project's own archive name.
-          jar=$(find build -maxdepth 4 -name "bedrock-shaders-*-${{ matrix.loader }}-*.jar" \
+          jar=$(find build -maxdepth 4 -name "bedrock-shaders-${{ matrix.loader }}-*.jar" \
                    ! -name '*-sources.jar' -print -quit)
           if [ -z "$jar" ]; then
             jar=$(find build -maxdepth 4 -name '*.jar' ! -name '*-sources.jar' \
@@ -205,16 +205,25 @@ jobs:
         run: |
           set -e
           mkdir -p ../../dist
-          # This step runs inside loaders/<loader>, so dist/ is two levels up. Find the
-          # jar rather than assuming the toolchain's output directory.
-          jar=$(find build -name '*.jar' ! -name '*-sources.jar' -print -quit)
-          if [ -z "$jar" ]; then echo "no jar produced"; exit 1; fi
+          # This step runs inside loaders/<loader>, so dist/ is two levels up.
+          # Only the project's own archive is publishable: the toolchain also emits
+          # multi-MB merged Minecraft jars (build/*merged*.jar, neoform caches). Picking
+          # one of those copied it into dist/, where .gitignore dropped it, and the job
+          # still reported success with no jar published. Match the loader name exactly.
+          jar=$(find build/libs -maxdepth 1 -name "bedrock-shaders-${{ matrix.loader }}-*.jar" \
+                  ! -name '*-sources.jar' -print -quit)
+          if [ -z "$jar" ]; then
+            echo "::error::no build/libs/bedrock-shaders-${{ matrix.loader }}-*.jar to publish"
+            find build -name '*.jar' -printf '%p %s bytes\n' | head -20 || true
+            exit 1
+          fi
+          echo "publishing $jar"
           cp "$jar" ../../dist/
           cd ../..
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dist
-          git diff --cached --quiet && { echo "jar unchanged"; exit 0; }
+          git add -f dist
+          if git diff --cached --quiet; then echo "jar unchanged"; exit 0; fi
           git commit -m "ci: publish ${{ matrix.loader }} jar [skip ci]"
           git pull --rebase --autostash
           git push

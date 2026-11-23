@@ -21,6 +21,11 @@ java {
 
 minecraft {
     mappings channel: 'official', version: project.minecraft_version
+    // 1.20.2+ Forge runs on official (Mojang) names, so there is nothing to reobfuscate.
+    // FG6 still creates reobfJar by default, and that task moves the jar out of
+    // build/libs into build/devlibs, which is why `build` finished with no publishable
+    // artifact. Disable it, as the Forge 1.21.1 MDK does.
+    reobf = false
     // Client-only mod: no data generation, no runs needed, only compilation.
 }
 
@@ -86,9 +91,9 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-// ForgeGradle compiles against the "named" (official) mappings and then rewrites the jar
-// into production names with reobfJar. Without wiring that in, `build` produces classes but
-// no loadable jar, which is exactly what CI reported.
+// 1.21.1 Forge resolves official names at runtime, so the jar task output *is* the
+// loadable artifact. (Wiring reobfJar here was the old 1.20.1 recipe; on FG6 it moved the
+// jar to build/devlibs instead of publishing it.)
 jar {
     manifest {
         attributes([
@@ -100,9 +105,4 @@ jar {
             'Implementation-Vendor'   : 'Bedrock Shaders contributors'
         ])
     }
-    finalizedBy 'reobfJar'
-}
-
-tasks.named('build') {
-    dependsOn 'reobfJar'
 }
