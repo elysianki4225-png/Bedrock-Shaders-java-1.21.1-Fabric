@@ -3,7 +3,7 @@
   "quilt_loader": {
     "group": "dev.bedrockshaders",
     "id": "bedrock_shaders",
-    "version": "${version}",
+    "version": "1.0.0",
     "metadata": {
       "name": "Bedrock Shaders",
       "description": "Brings Minecraft Bedrock's Deferred Rendering Pipeline look to Minecraft: Java Edition: PBR-style water, volumetric fog, Bedrock sky scattering, SSAO, screen-space reflections, god rays, bloom and Bedrock colour grading.",

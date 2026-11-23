@@ -29,13 +29,40 @@ METADATA = {
 }
 
 
+def declared_version() -> str:
+    for line in (ROOT / "gradle.properties").read_text(encoding="utf-8").splitlines():
+        if line.startswith("mod_version="):
+            return line.split("=", 1)[1].strip()
+    raise SystemExit("gradle.properties has no mod_version")
+
+
+def check_templates(version: str) -> list[str]:
+    """The mod metadata carries the version literally, because the jars are assembled from
+    the raw resources (sourcesJar) or from src/quilt/resources (quiltJar), which bypass the
+    processResources expansion. Keep the literal and mod_version in step."""
+    problems = []
+    for rel, key in (("src/main/resources/fabric.mod.json", '"version"'),
+                     ("src/quilt/resources/quilt.mod.json", '"version"')):
+        path = ROOT / rel
+        if not path.is_file():
+            problems.append(f"missing {rel}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if '"${version}"' in text:
+            problems.append(f"{rel}: placeholder ${{version}} would ship verbatim")
+        elif f'{key}: "{version}"' not in text:
+            problems.append(f"{rel}: version does not match mod_version={version}")
+    return problems
+
+
 def main() -> int:
+    version = declared_version()
+    problems = check_templates(version)
     jars = sorted(p for p in DIST.glob("*.jar") if not p.name.endswith("-sources.jar"))
     if not jars:
         print(f"no jars in {DIST}", file=sys.stderr)
         return 1
 
-    problems: list[str] = []
     notes: list[str] = []
     seen: dict[str, pathlib.Path] = {}
 

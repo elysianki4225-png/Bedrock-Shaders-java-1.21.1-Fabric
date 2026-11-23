@@ -47,9 +47,6 @@ def syncShaders = tasks.register("syncShaders", Exec) {
 processResources {
     dependsOn syncShaders
     inputs.property "version", project.version
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
-    }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -69,24 +66,9 @@ jar {
     }
 }
 
-// withSourcesJar() copies the *unprocessed* src/main/resources into the sources artifact,
-// so fabric.mod.json ships with a literal ${version}: expandable templating that never got
-// expanded. Point the sources jar at the processed output instead. The source set still
-// carries the client tree, so the artifact stays a readable reference for all four ports.
-tasks.named('sourcesJar') {
-    // withSourcesJar() archives sourceSets.main.allSource: the Java sources *and* the raw
-    // src/main/resources, so fabric.mod.json shipped the literal ${version}, and filtering
-    // with exclude() also removed the sources it had added. Clear the inherited content and
-    // describe the artifact instead: Java sources for reference, processed metadata for
-    // truth.
-    getSource().clear()
-    from(sourceSets.main.java)
-    from(sourceSets.client.java)
-    from(sourceSets.main.output) {
-        include 'fabric.mod.json'
-    }
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
+// Mod metadata carries the version literally (see src/main/resources/fabric.mod.json):
+// withSourcesJar() archives the raw resources, so any ${version} placeholder in the
+// repository would be shipped verbatim in the sources artifact.
 
 
 // ---------------------------------------------------------------------------
@@ -104,14 +86,9 @@ def quiltJar = tasks.register('quiltJar', Jar) {
     archiveClassifier = ''
     from(sourceSets.main.output)
     from(sourceSets.client.output)
-    // quilt.mod.json carries ${version} like fabric.mod.json does. Copying the raw
-    // directory shipped the placeholder into the jar, which Quilt Loader rejects; expand it
-    // here the way processResources does for the Fabric metadata.
-    from(project.file('src/quilt/resources')) {
-        filesMatching('quilt.mod.json') {
-            expand 'version': project.version
-        }
-    }
+    // Metadata is literal for the same reason as fabric.mod.json: this jar is assembled
+    // from the raw src/quilt/resources, bypassing processResources.
+    from(project.file('src/quilt/resources'))
     from('LICENSE') {
         rename { "${it}_${project.archives_base_name}-quilt" }
     }
