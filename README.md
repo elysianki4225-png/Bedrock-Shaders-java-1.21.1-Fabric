@@ -12,8 +12,9 @@ and a post-processing chain (SSAO, bloom, god rays, tone mapping).
 | Forge | [`dist/bedrock-shaders-forge-1.0.0.jar`](dist/bedrock-shaders-forge-1.0.0.jar) | Forge 52.0.28 (1.21.1) |
 | NeoForge | [`dist/bedrock-shaders-neoforge-1.0.0.jar`](dist/bedrock-shaders-neoforge-1.0.0.jar) | NeoForge 21.1.119 (1.21.1) |
 
-Every jar is rebuilt by CI on each push, and the three loader builds are compiled in
-their own jobs so a regression in one cannot hide in another.
+**Fabric and Quilt are the maintained, optimised targets.** The Forge and NeoForge ports
+compile and are updated alongside them, but they are built non-blocking in CI while their
+packaging is finished, so a loader-only failure does not mark the branch red.
 
 ## Install
 
