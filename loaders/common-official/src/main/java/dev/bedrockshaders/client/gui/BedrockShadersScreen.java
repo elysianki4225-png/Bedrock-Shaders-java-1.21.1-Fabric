@@ -299,7 +299,7 @@ public final class BedrockShadersScreen extends Screen {
     private CycleButton<Boolean> toggle(int x, int y, int width, String key, boolean initial,
                                                 java.util.function.Consumer<Boolean> setter) {
         return CycleButton.onOffBuilder()
-                .initially(initial)
+                .withInitialValue(initial)
                 .build(x, y, width, ROW_HEIGHT, Component.translatable(key),
                         (button, value) -> {
                             setter.accept(value);

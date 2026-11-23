@@ -23,6 +23,7 @@ FABRIC = re.compile(r"\bnet\.fabricmc\b|\bFabricLoader\b|\bFabricClient\b")
 YARN_ONLY = re.compile(
     r"\bCyclingButton\b"          # official: CycleButton
     r"|\bMinecraftClient\b"       # official: Minecraft
+    r"|\.initially\("              # CycleButton.Builder: official is withInitialValue
     r"|\bText\b(?=\s*[.(])"       # official: Component
     r"|\bnet\.minecraft\.client\.util\.InputUtil\b"
 )
