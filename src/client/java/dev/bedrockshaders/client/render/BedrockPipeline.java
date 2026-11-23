@@ -88,6 +88,12 @@ public final class BedrockPipeline {
         if (initialized || failed) {
             return;
         }
+        // No GL at all under VulkanMod: compiling a program would crash the game. Iris owns
+        // the frame too, and our post chain would fight its pipeline, so neither mode gets
+        // to allocate anything.
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         try {
             quad.create();
             ssaoProgram = compile("ssao", PostShaders.ssaoFragment());
@@ -119,6 +125,9 @@ public final class BedrockPipeline {
 
     /** True when the effects need the scene copy this frame (i.e. something is enabled). */
     public boolean wantsEffects() {
+        if (!RenderCompat.get().allowsGlWork()) {
+            return false;
+        }
         BedrockConfig config = ConfigManager.get().config();
         return config.enabled && (config.ssao || config.bloom || config.godrays || config.composite());
     }
@@ -128,6 +137,9 @@ public final class BedrockPipeline {
      * depth + matrices. Called after {@code WorldRenderer.render} has drawn the world.
      */
     public void captureScene(FrameContext context) {
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         if (!isReady()) {
             return;
         }
@@ -173,6 +185,9 @@ public final class BedrockPipeline {
      * {@code GameRenderer.render}.
      */
     public void renderEffects(FrameContext context) {
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         if (!isReady() || !hasCapturedScene(context.frameId())) {
             return;
         }
@@ -333,6 +348,9 @@ public final class BedrockPipeline {
 
     /** Draws the Bedrock sky into the main framebuffer (replacing vanilla's sky). */
     public void renderSky(FrameContext context) {
+        if (!RenderCompat.get().allowsGlWork()) {
+            return;
+        }
         if (!isReady() || !ConfigManager.get().config().replaceVanillaSky) {
             return;
         }

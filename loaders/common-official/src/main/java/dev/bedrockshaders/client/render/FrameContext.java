@@ -97,6 +97,14 @@ public final class FrameContext {
      */
     public void beginFrame(ClientSnapshot snapshot) {
         frameId++;
+        // A downgraded mode (Iris owns the frame, or there is no GL backend at all) must
+        // leave every downstream consumer inactive: uniforms stop binding, the sky is
+        // untouched and the post chain never runs.
+        if (!RenderCompat.get().allowsGlWork()) {
+            active = false;
+            inWorld = snapshot != null && snapshot.inWorld();
+            return;
+        }
         active = snapshot != null && snapshot.inWorld();
         inWorld = active;
         if (!active) {

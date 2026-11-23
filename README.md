@@ -9,21 +9,26 @@ and a post-processing chain (SSAO, bloom, god rays, tone mapping).
 
 ## Download
 
-Each loader has its own jar. Every file name states which loader it is for, so a folder
-holding all four stays unambiguous.
+Each loader has its own jar, and every file name states which loader it is for.
 
-| Loader | Download | File name | Requires | Status |
-| --- | --- | --- | --- | --- |
-| **Fabric** | [**bedrock-shaders-fabric-1.0.0.jar**](dist/bedrock-shaders-fabric-1.0.0.jar) | `bedrock-shaders-fabric-1.0.0.jar` | Fabric Loader ≥ 0.16 + Fabric API ≥ 0.100 | **Primary target** |
-| **Quilt** | [**bedrock-shaders-quilt-1.0.0.jar**](dist/bedrock-shaders-quilt-1.0.0.jar) | `bedrock-shaders-quilt-1.0.0.jar` | Quilt Loader ≥ 0.30 + Fabric API ≥ 0.100 | **Primary target** |
-| Forge | [bedrock-shaders-forge-1.0.0.jar](dist/bedrock-shaders-forge-1.0.0.jar) | `bedrock-shaders-forge-1.0.0.jar` | Forge 52.0.28 (1.21.1) | Maintained, secondary |
-| NeoForge | [bedrock-shaders-neoforge-1.0.0.jar](dist/bedrock-shaders-neoforge-1.0.0.jar) | `bedrock-shaders-neoforge-1.0.0.jar` | NeoForge 21.1.119 (1.21.1) | Maintained, secondary |
+| Loader | Download | Requires | Status |
+| --- | --- | --- | --- |
+| **Fabric** | [**bedrock-shaders-fabric-1.0.0.jar**](dist/bedrock-shaders-fabric-1.0.0.jar) | Fabric Loader ≥ 0.16 + Fabric API ≥ 0.100 | **Primary target** |
+| **Quilt** | [**the same Fabric jar**](dist/bedrock-shaders-fabric-1.0.0.jar) — no separate file | Quilt Loader ≥ 0.30 + Fabric API ≥ 0.100 | **Primary target** |
+| Forge | [bedrock-shaders-forge-1.0.0.jar](dist/bedrock-shaders-forge-1.0.0.jar) | Forge 52.0.28 (1.21.1) | Maintained, secondary |
+| NeoForge | [bedrock-shaders-neoforge-1.0.0.jar](dist/bedrock-shaders-neoforge-1.0.0.jar) | NeoForge 21.1.119 (1.21.1) | Maintained, secondary |
 
-Sources jar (all loaders, for reference): [bedrock-shaders-fabric-1.0.0-sources.jar](dist/bedrock-shaders-fabric-1.0.0-sources.jar)
+Sources jar: [bedrock-shaders-fabric-1.0.0-sources.jar](dist/bedrock-shaders-fabric-1.0.0-sources.jar)
 
-**Fabric and Quilt are the maintained, optimised targets.** The Forge and NeoForge ports
-compile and are updated alongside them, but they are built non-blocking in CI while their
-packaging is finished, so a loader-only failure does not mark the branch red.
+**There is deliberately no `-quilt` jar.** Quilt Loader 0.30+ loads Fabric mods natively,
+so the Fabric artifact *is* the Quilt download. A second jar that only swapped metadata
+meant two things to test and two places for the version to drift — and for a while it
+shipped a `quilt.mod.json` with a literal `${version}` that Quilt Loader refuses outright.
+One artifact, one thing to get right.
+
+**Fabric (and therefore Quilt) is the maintained, optimised target.** The Forge and
+NeoForge ports compile and are updated alongside it, but they are built non-blocking in CI
+while their packaging is finished, so a loader-only failure does not mark the branch red.
 
 ## Install
 
@@ -43,6 +48,26 @@ Languages: English and 简体中文 (`assets/bedrock_shaders/lang/{en_us,zh_cn}.
 Commands: `/bedrock menu`, `/bedrock toggle`, `/bedrock preset <potato|low|balanced|high|ultra>`,
 `/bedrock packs`, `/bedrock import`, `/bedrock reload`, `/bedrock fog`, `/bedrock effects`,
 `/bedrock debug`.
+
+## Living next to other mods
+
+The renderer is invasive by nature: it replaces five vanilla core shader programs and runs
+its own post chain into the main framebuffer. Some very popular mods want the same ground,
+so the mod picks a mode at launch instead of finding out later:
+
+| Installed | Mode | What happens |
+| --- | --- | --- |
+| Nothing relevant | **Full** | Everything runs |
+| **Sodium / Embeddium / Rubidium** | **Full** | They replace the chunk render backend only, so nothing changes for us |
+| **Lithium, FerriteCore, ModernFix, ImmediatelyFast, EntityCulling, C2ME, Krypton, Starlight, MemoryLeakFix, BadOptimizations, MoreCulling** | **Full** | They never touch the GL pipeline: no conflict, no special handling |
+| **Iris / Oculus** | **Yield** | Iris owns the frame and the same five programs. The mod keeps the `.mcpack` importer, the generated resource packs and the settings screen, but binds no uniforms, replaces no sky and runs no post chain — no double tone mapping, no fighting over the framebuffer |
+| **VulkanMod** | **Disabled (no GL)** | There is no OpenGL at all, so any GL call would crash. The mod still loads, the GUI still opens, imports still work — nothing visual runs |
+
+This is decided once at startup from the installed mod ids and reported in the log, so
+`latest.log` always says which mode is active and why. `/bedrock debug` shows it too.
+`verification/test_compat.py` pins the whole matrix — including that a content mod like
+Create, or an unrelated mod whose id merely starts with `iris` or `vulkan`, never triggers
+a downgrade.
 
 ## Installing Bedrock shader packs (.mcpack)
 
@@ -94,7 +119,7 @@ open the folder, and it links to vanilla's own resource-pack screen.
 compiled pipeline binaries with no Java Edition equivalent. Only the data-driven Deferred
 Rendering JSON is imported.
 
-## One renderer, four loaders
+## One renderer, three artifacts
 
 The renderer itself (`BedrockPipeline`, `FrameContext`, `BedrockAssetLibrary`, the
 `.mcpack` importer, the GUI and the command) is plain Java with no Minecraft import.
@@ -106,8 +131,9 @@ Each platform supplies the same three small pieces:
 - three mixins on the same three vanilla methods (`GameRenderer#renderLevel`,
   `LevelRenderer#renderSky`, `ShaderInstance#apply` / `ShaderProgram#bind`).
 
-Quilt reuses the Fabric code byte-for-byte: Quilt Loader loads Fabric mods natively, so
-the Quilt artifact only swaps `fabric.mod.json` for `quilt.mod.json`.
+Quilt needs no port at all: Quilt Loader 0.30 loads Fabric mods natively (Fabric API
+included, since there is no Quilted Fabric API release for 1.21.1), so the Fabric jar runs
+there unchanged.
 
 ## How it works
 

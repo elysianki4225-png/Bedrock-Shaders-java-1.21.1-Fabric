@@ -16,10 +16,19 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHARED = ROOT / "loaders" / "common-official" / "src" / "main" / "java"
+# RenderCompat is shared config-style code: both the Fabric client tree and the official
+# source set compile it, so it must stay free of loader and Minecraft imports too.
+SHARED_TOO = [
+    ROOT / "src" / "main" / "java" / "dev" / "bedrockshaders" / "client" / "render" / "RenderCompat.java",
+]
 
 FABRIC = re.compile(r"\bnet\.fabricmc\b|\bFabricLoader\b|\bFabricClient\b")
 # Yarn class names that differ from the official (Mojang) names the shared tree compiles
 # against. Each entry is a Yarn name that must be spelled the official way here.
+# RenderCompat is called from both platform entrypoints and from FrameContext, so it may
+# not depend on a Minecraft class either.
+MINECRAFT = re.compile(r"\bnet\.minecraft\b")
+
 YARN_ONLY = re.compile(
     r"\bCyclingButton\b"          # official: CycleButton
     r"|\bMinecraftClient\b"       # official: Minecraft
@@ -35,7 +44,7 @@ def main() -> int:
         return 1
 
     problems: list[str] = []
-    files = sorted(SHARED.rglob("*.java"))
+    files = sorted(SHARED.rglob("*.java")) + [p for p in SHARED_TOO if p.is_file()]
     for path in files:
         rel = path.relative_to(ROOT).as_posix()
         text = path.read_text(encoding="utf-8")
@@ -46,7 +55,11 @@ def main() -> int:
             code = line.split("//", 1)[0]
             if line.lstrip().startswith("*"):
                 continue
-            for pattern, label in ((FABRIC, "Fabric API"), (YARN_ONLY, "Yarn-only class")):
+            patterns = [(FABRIC, "Fabric API"), (YARN_ONLY, "Yarn-only class")]
+            # Loader-neutral by contract (see SHARED_TOO): no Minecraft class at all.
+            if path in SHARED_TOO:
+                patterns.append((MINECRAFT, "Minecraft class in shared code"))
+            for pattern, label in patterns:
                 if pattern.search(code):
                     problems.append(f"{rel}:{number}: {label} in the shared source set -> {line.strip()}")
 

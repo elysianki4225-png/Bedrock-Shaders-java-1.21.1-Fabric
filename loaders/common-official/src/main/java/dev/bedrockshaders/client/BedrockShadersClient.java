@@ -12,6 +12,7 @@ import dev.bedrockshaders.client.pack.PackRegistry;
 import dev.bedrockshaders.client.render.BedrockPipeline;
 import dev.bedrockshaders.client.render.BedrockShaderPack;
 import dev.bedrockshaders.client.render.BedrockUniforms;
+import dev.bedrockshaders.client.render.RenderCompat;
 import dev.bedrockshaders.client.render.ShaderSources;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -41,6 +42,12 @@ public final class BedrockShadersClient {
 
         /** Registers a key mapping; returns the live instance the tick handler polls. */
         KeyMapping registerKey(String descriptionId, int defaultKey);
+
+        /** Ids of every loaded mod, so the compatibility check can see Iris/VulkanMod. */
+        java.util.List<String> loadedModIds();
+
+        /** Whether a mod id is loaded; used for ids that were not listed above. */
+        boolean isModLoaded(String modId);
     }
 
     private static Platform platform;
@@ -59,6 +66,11 @@ public final class BedrockShadersClient {
         initialised = true;
         BedrockShadersClient.platform = platform;
         GamePaths.set(platform.configDir(), platform.gameDir());
+
+        // Decide what may run before anything touches GL: under VulkanMod even compiling our
+        // post programs would crash the client, and next to Iris two pipelines would fight
+        // over the same framebuffer.
+        RenderCompat.install(platform::isModLoaded, platform.loadedModIds());
 
         ConfigManager.get().load();
 
@@ -153,7 +165,11 @@ public final class BedrockShadersClient {
         ShaderSources.reload(source);
         BedrockAssetLibrary.get().reload(source);
         BedrockUniforms.invalidate();
-        BedrockShaderPack.ensureGenerated(source, true);
+        // Generating the override pack is pointless (and under Iris, actively harmful: it
+        // would fight Iris' own core programs) when the renderer is downgraded.
+        if (RenderCompat.get().allowsGlWork()) {
+            BedrockShaderPack.ensureGenerated(source, true);
+        }
         ImportedPackActivator.invalidate();
         Minecraft client = Minecraft.getInstance();
         if (client != null && client.level == null) {

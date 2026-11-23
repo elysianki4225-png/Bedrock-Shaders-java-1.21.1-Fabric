@@ -47,6 +47,20 @@ public final class NeoForgeClient {
             }
 
             @Override
+            public java.util.List<String> loadedModIds() {
+                java.util.List<String> ids = new ArrayList<>();
+                for (net.neoforged.fml.ModInfo info : net.neoforged.fml.ModList.get().getMods()) {
+                    ids.add(info.getModId());
+                }
+                return ids;
+            }
+
+            @Override
+            public boolean isModLoaded(String modId) {
+                return net.neoforged.fml.ModList.get().isLoaded(modId);
+            }
+
+            @Override
             public KeyMapping registerKey(String descriptionId, int defaultKey) {
                 // Stored now, handed to RegisterKeyMappingsEvent below: the event fires
                 // after this constructor, and the client ticks the same instance.

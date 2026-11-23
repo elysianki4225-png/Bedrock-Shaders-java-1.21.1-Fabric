@@ -46,6 +46,9 @@ jobs:
       - name: Test shader family detection
         run: python3 verification/test_families.py
 
+      - name: Test mod compatibility matrix
+        run: python3 verification/test_compat.py
+
       # The READMEs are the download page; this checks their links without a build.
       - name: Validate README download links
         run: python3 verification/check_readme_links.py
@@ -65,10 +68,10 @@ jobs:
           SHA: ${{ github.sha }}
         run: python3 verification/report_failure.py
 
-      - name: Upload mod jars (Fabric + Quilt)
+      - name: Upload mod jar (Fabric)
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-shaders-jars-fabric-quilt
+          name: bedrock-shaders-jars-fabric
           path: build/libs/*.jar
           if-no-files-found: error
 
@@ -79,13 +82,13 @@ jobs:
         run: |
           set -e
           mkdir -p dist
-          # Only replace the Fabric/Quilt jars this job produced. The loader jobs publish
+          # Only replace the Fabric jar this job produced. The loader jobs publish
           # forge/neoforge jars into the same folder from other runners, so a blanket
           # `dist/bedrock-shaders-*.jar` wipe would delete their commits on every run.
-          # Clean the current scheme for the two jars built here, plus the pre-rename names.
+          # Clean the jars built here, the pre-rename names, and the retired Quilt artifact
+          # (Quilt Loader loads the Fabric jar, so dist/ must not keep a second copy).
           rm -f dist/bedrock-shaders-fabric-*.jar dist/bedrock-shaders-quilt-*.jar \
-                dist/bedrock-shaders-1.0.0.jar dist/bedrock-shaders-quilt-1.0.0.jar \
-                dist/bedrock-shaders-1.0.0-sources.jar
+                dist/bedrock-shaders-1.0.0.jar dist/bedrock-shaders-1.0.0-sources.jar
           cp build/libs/*.jar dist/
           if [ -z "$(git status --porcelain dist)" ]; then
             echo "jar unchanged"

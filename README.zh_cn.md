@@ -8,20 +8,24 @@
 
 ## 下载
 
-每个加载器都有独立的 jar。**每个文件名都写明了它属于哪个加载器**，所以四个文件放在同一个
-文件夹里也不会混淆。
+每个加载器都有对应的 jar，文件名写明了它属于哪个加载器。
 
-| 加载器 | 下载 | 文件名 | 前置要求 | 状态 |
-| --- | --- | --- | --- | --- |
-| **Fabric** | [**bedrock-shaders-fabric-1.0.0.jar**](dist/bedrock-shaders-fabric-1.0.0.jar) | `bedrock-shaders-fabric-1.0.0.jar` | Fabric Loader ≥ 0.16 + Fabric API ≥ 0.100 | **主要支持** |
-| **Quilt** | [**bedrock-shaders-quilt-1.0.0.jar**](dist/bedrock-shaders-quilt-1.0.0.jar) | `bedrock-shaders-quilt-1.0.0.jar` | Quilt Loader ≥ 0.30 + Fabric API ≥ 0.100 | **主要支持** |
-| Forge | [bedrock-shaders-forge-1.0.0.jar](dist/bedrock-shaders-forge-1.0.0.jar) | `bedrock-shaders-forge-1.0.0.jar` | Forge 52.0.28（1.21.1） | 维护中，次要 |
-| NeoForge | [bedrock-shaders-neoforge-1.0.0.jar](dist/bedrock-shaders-neoforge-1.0.0.jar) | `bedrock-shaders-neoforge-1.0.0.jar` | NeoForge 21.1.119（1.21.1） | 维护中，次要 |
+| 加载器 | 下载 | 前置要求 | 状态 |
+| --- | --- | --- | --- |
+| **Fabric** | [**bedrock-shaders-fabric-1.0.0.jar**](dist/bedrock-shaders-fabric-1.0.0.jar) | Fabric Loader ≥ 0.16 + Fabric API ≥ 0.100 | **主要支持** |
+| **Quilt** | [**直接使用上面同一个 Fabric jar**](dist/bedrock-shaders-fabric-1.0.0.jar)（没有单独文件） | Quilt Loader ≥ 0.30 + Fabric API ≥ 0.100 | **主要支持** |
+| Forge | [bedrock-shaders-forge-1.0.0.jar](dist/bedrock-shaders-forge-1.0.0.jar) | Forge 52.0.28（1.21.1） | 维护中，次要 |
+| NeoForge | [bedrock-shaders-neoforge-1.0.0.jar](dist/bedrock-shaders-neoforge-1.0.0.jar) | NeoForge 21.1.119（1.21.1） | 维护中，次要 |
 
-源码 jar（含全部加载器，仅供参考）：[bedrock-shaders-fabric-1.0.0-sources.jar](dist/bedrock-shaders-fabric-1.0.0-sources.jar)
+源码 jar：[bedrock-shaders-fabric-1.0.0-sources.jar](dist/bedrock-shaders-fabric-1.0.0-sources.jar)
 
-**Fabric 与 Quilt 是主要优化目标。** Forge / NeoForge 两个移植版会同步编译和更新，但目前在
-CI 中以非阻塞方式构建（打包环节仍在收尾），所以单独一个加载器失败不会把整个分支标红。
+**这里刻意不再提供 `-quilt` 版。** Quilt Loader 0.30+ 原生加载 Fabric 模组，所以 Fabric 那个
+jar 就是 Quilt 的下载。之前多打一个只是换了元数据的 jar，等于有两份东西要测、两处版本号可能
+对不上 —— 而且它确实一度带着字面量 `${version}` 的 `quilt.mod.json`，Quilt Loader 会直接拒绝
+加载。现在只有一个产物，只有一件事要做好。
+
+**Fabric（以及走 Fabric 版的 Quilt）是主要优化目标。** Forge / NeoForge 会同步编译更新，但
+目前在 CI 中以非阻塞方式构建（打包环节仍在收尾），所以单独一个加载器失败不会把整个分支标红。
 
 ## 安装
 
@@ -40,6 +44,23 @@ CI 中以非阻塞方式构建（打包环节仍在收尾），所以单独一�
 命令：`/bedrock menu`、`/bedrock toggle`、`/bedrock preset <potato|low|balanced|high|ultra>`、
 `/bedrock packs`、`/bedrock import`、`/bedrock reload`、`/bedrock fog`、`/bedrock effects`、
 `/bedrock debug`。
+
+## 和其他模组一起用
+
+这个渲染器天生"动手比较狠"：它接管五个原版核心着色器程序，并用自己的后处理链写回主帧缓冲。
+几个非常流行的模组会抢同一块地盘，所以模组在启动时就决定档位，而不是等出问题再说：
+
+| 装了这些 | 档位 | 会发生什么 |
+| --- | --- | --- |
+| 没有相关模组 | **完整** | 全部功能运行 |
+| **Sodium / Embeddium / Rubidium** | **完整** | 它们只替换区块渲染后端，对我们没有影响 |
+| **锂（Lithium）、FerriteCore、ModernFix、ImmediatelyFast、EntityCulling、C2ME、Krypton、Starlight、MemoryLeakFix、BadOptimizations、MoreCulling** | **完整** | 它们根本不碰 GL 管线：不冲突，也不需要特殊处理 |
+| **Iris / Oculus** | **让路** | Iris 自己拥有整个帧和那五个程序。本模组保留 `.mcpack` 导入、生成的资源包和设置界面，但不再绑定 uniform、不替换天空、不跑后处理 —— 既不会双重色调映射，也不会争抢帧缓冲 |
+| **VulkanMod** | **禁用（无 GL）** | 那里根本没有 OpenGL，任何 GL 调用都会崩。模组照常加载、界面照常能开、导入照常可用，只是不渲染任何效果 |
+
+这个判断在启动时根据已安装模组 id 一次性做出并写进日志，所以 `latest.log` 永远能看出当前是哪个
+档位、为什么。`/bedrock debug` 也会显示。`verification/test_compat.py` 锁定了整张矩阵 —— 包括
+像 Create 这种内容模组，或者 id 只是以 `iris`、`vulkan` 开头的无关模组，绝不会误触发降级。
 
 ## 导入基岩版光影包（.mcpack）
 
@@ -83,7 +104,7 @@ CI 中以非阻塞方式构建（打包环节仍在收尾），所以单独一�
 **不支持的内容：** 二进制 RenderDragon 着色器（`*.material.bin`）—— 那是编译好的管线二进制，
 在 Java 版里没有对应物。只导入数据驱动的延迟渲染 JSON。
 
-## 一套渲染器，四个加载器
+## 一套渲染器，三个产物
 
 渲染器本身（`BedrockPipeline`、`FrameContext`、`BedrockAssetLibrary`、`.mcpack` 导入器、
 GUI 和命令）是纯 Java，不引用任何 Minecraft 类。每个平台只提供同样的三小样东西：
@@ -94,8 +115,8 @@ GUI 和命令）是纯 Java，不引用任何 Minecraft 类。每个平台只提
 - 三个 mixin，注入同三个原版方法（`GameRenderer#renderLevel`、`LevelRenderer#renderSky`、
   `ShaderInstance#apply` / `ShaderProgram#bind`）。
 
-Quilt 版逐字节复用 Fabric 代码：Quilt Loader 原生加载 Fabric 模组，所以 Quilt 产物只是把
-`fabric.mod.json` 换成 `quilt.mod.json`。
+Quilt 完全不需要移植：Quilt Loader 0.30 原生加载 Fabric 模组（含 Fabric API，因为 1.21.1 没有
+Quilted Fabric API 发布），所以 Fabric 那个 jar 原样就能跑。
 
 ## 工作原理
 

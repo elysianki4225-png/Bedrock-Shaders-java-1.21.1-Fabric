@@ -9,6 +9,7 @@ import dev.bedrockshaders.client.pack.ImportedPackActivator;
 import dev.bedrockshaders.client.pack.PackRegistry;
 import dev.bedrockshaders.client.gui.BedrockShadersScreen;
 import dev.bedrockshaders.client.render.BedrockPipeline;
+import dev.bedrockshaders.client.render.RenderCompat;
 import dev.bedrockshaders.client.render.BedrockShaderPack;
 import dev.bedrockshaders.client.render.BedrockUniforms;
 import dev.bedrockshaders.client.render.ShaderSources;
@@ -29,6 +30,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -48,6 +50,15 @@ public final class BedrockShadersClient implements ClientModInitializer {
         // free of loader imports.
         GamePaths.set(FabricLoader.getInstance().getConfigDir(),
                 FabricLoader.getInstance().getGameDir());
+
+        // Decide what may run before anything touches GL. Only the loader can enumerate
+        // installed mods, and the answer has to exist before the first frame: under
+        // VulkanMod even compiling our post programs would crash the client.
+        List<String> modIds = new ArrayList<>();
+        for (var mod : FabricLoader.getInstance().getAllMods()) {
+            modIds.add(mod.getMetadata().getId());
+        }
+        RenderCompat.install(FabricLoader.getInstance()::isModLoaded, modIds);
 
         ConfigManager.get().load();
 
@@ -71,12 +82,21 @@ public final class BedrockShadersClient implements ClientModInitializer {
         BedrockShaderPack.setPackRoot(FabricLoader.getInstance().getConfigDir()
                 .resolve("bedrock-shaders").resolve("pack"));
 
-        FabricLoader.getInstance().getModContainer(MOD_ID).ifPresent(container ->
-                packRegistered = ResourceManagerHelper.registerBuiltinResourcePack(
-                        Identifier.of(MOD_ID, "runtime_shaders"),
-                        container,
-                        Text.literal("Bedrock Shaders (runtime)"),
-                        ResourcePackActivationType.DEFAULT_ENABLED));
+        // The built-in pack overrides five vanilla core shader programs. With Iris installed
+        // that is a direct fight over the same programs and the same framebuffer, so it is
+        // not registered at all: the imported .mcpack data still applies through the
+        // resource-pack stack that Iris itself loads.
+        if (RenderCompat.get().allowsGlWork()) {
+            FabricLoader.getInstance().getModContainer(MOD_ID).ifPresent(container ->
+                    packRegistered = ResourceManagerHelper.registerBuiltinResourcePack(
+                            Identifier.of(MOD_ID, "runtime_shaders"),
+                            container,
+                            Text.literal("Bedrock Shaders (runtime)"),
+                            ResourcePackActivationType.DEFAULT_ENABLED));
+        } else {
+            BedrockShadersMod.LOGGER.info(
+                    "Bedrock runtime shader pack not registered: {}", RenderCompat.get().reason());
+        }
 
         // The render pipeline only needs three values from the main framebuffer; keep the
         // game-type dependency here so the pipeline stays loader-agnostic.
@@ -180,7 +200,9 @@ public final class BedrockShadersClient implements ClientModInitializer {
             BedrockAssetLibrary.get().reload(source);
             BedrockUniforms.invalidate();
             BedrockShaderPack.setCurrentSource(source);
-            BedrockShaderPack.ensureGenerated(source, true);
+            if (RenderCompat.get().allowsGlWork()) {
+                BedrockShaderPack.ensureGenerated(source, true);
+            }
             ImportedPackActivator.invalidate();
             MinecraftClient client = MinecraftClient.getInstance();
             if (client != null && client.world == null) {

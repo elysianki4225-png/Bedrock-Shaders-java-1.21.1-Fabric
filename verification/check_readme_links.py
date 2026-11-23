@@ -53,11 +53,27 @@ def main() -> int:
                 "README.md and README.zh_cn.md link different jars: "
                 f"only-en={sorted(en - zh)} only-zh={sorted(zh - en)}"
             )
-        # one download per loader, plus the sources jar
-        for loader in ("fabric", "quilt", "forge", "neoforge"):
+        # One download per loader that ships its own jar. Quilt is deliberately absent: it
+        # loads the Fabric jar, and the READMEs say so in their own table row.
+        for loader in ("fabric", "forge", "neoforge"):
             pattern = f"-{loader}-"
             if not any(pattern in target for target in en):
                 problems.append(f"no download link for the {loader} jar")
+        if any("-quilt-" in target for target in en | zh):
+            problems.append(
+                "the READMEs still link a -quilt jar; Quilt Loader loads the Fabric jar, so "
+                "there is no separate artifact and that link would 404")
+
+    # Both languages must tell Quilt users which file to download.
+    for name in DOCS:
+        path = ROOT / name
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "**Quilt**" not in text:
+            problems.append(f"{name}: no Quilt row, users cannot find the file to download")
+        elif "bedrock-shaders-fabric-1.0.0.jar" not in text.split("**Quilt**", 1)[1][:200]:
+            problems.append(f"{name}: the Quilt row does not point at the Fabric jar")
 
     print(f"checked {len(per_doc)} README file(s), {len(set().union(*per_doc.values()) if per_doc else set())} link target(s)")
     if problems:

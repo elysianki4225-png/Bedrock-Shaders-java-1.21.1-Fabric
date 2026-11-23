@@ -8,6 +8,7 @@ import dev.bedrockshaders.client.gui.BedrockShadersScreen;
 import dev.bedrockshaders.client.render.BedrockPipeline;
 import dev.bedrockshaders.client.render.BedrockShaderPack;
 import dev.bedrockshaders.client.render.FrameContext;
+import dev.bedrockshaders.client.render.RenderCompat;
 import dev.bedrockshaders.config.QualityPreset;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.MinecraftClient;
@@ -92,7 +93,9 @@ public final class BedrockShadersCommand {
                                     + " time=" + String.format("%.2f", frame.sunAngle())
                                     + " biome=" + frame.biomeId()
                                     + " pack=" + (frame.activePackName().isEmpty() ? "builtin" : frame.activePackName())
-                                    + " family=" + frame.shaderFamily().id));
+                                    + " family=" + frame.shaderFamily().id
+                                    + " compat=" + RenderCompat.get().mode()
+                                    + " (" + RenderCompat.get().reason() + ")"));
                     return 1;
                 }))
                 .then(literal("fog").executes(ctx -> {
