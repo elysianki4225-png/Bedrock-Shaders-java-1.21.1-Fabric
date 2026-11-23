@@ -55,8 +55,6 @@ public final class OfficialClientSnapshot implements ClientSnapshot {
     }
 
     @Override
-<<<<<<< HEAD
-=======
     public boolean inNether() {
         ClientLevel current = level();
         return current != null && current.dimension() == Level.NETHER;
@@ -69,7 +67,6 @@ public final class OfficialClientSnapshot implements ClientSnapshot {
     }
 
     @Override
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
     public float tickDelta() {
         return client.getTimer().getGameTimeDeltaPartialTick(false);
     }

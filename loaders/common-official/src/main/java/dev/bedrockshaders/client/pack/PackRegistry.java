@@ -129,10 +129,7 @@ public final class PackRegistry {
             }
         }
         loaded = true;
-<<<<<<< HEAD
-=======
         invalidateActivePackCache();
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
         BedrockShadersMod.LOGGER.info("Bedrock pack registry: {} imported pack(s) in {}", packs.size(), root());
     }
 
@@ -189,10 +186,7 @@ public final class PackRegistry {
             }
         }
         if (!results.isEmpty()) {
-<<<<<<< HEAD
-=======
             invalidateActivePackCache();
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             save();
         }
         return results;
@@ -236,16 +230,6 @@ public final class PackRegistry {
         return active;
     }
 
-<<<<<<< HEAD
-    /** Name of the first active imported pack, or an empty string when none is loaded. */
-    public synchronized String activePackName() {
-        for (ImportedPack pack : packs.values()) {
-            if (pack.enabled && pack.packKind() == BedrockPackKind.DEFERRED_DATA) {
-                return pack.displayName;
-            }
-        }
-        return "";
-=======
     /**
      * Cached answer to {@link #activePackName()}.
      *
@@ -269,7 +253,6 @@ public final class PackRegistry {
     /** Name of the first active imported pack, or an empty string when none is loaded. */
     public String activePackName() {
         return activePackCache;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
     }
 
     /**
@@ -286,10 +269,7 @@ public final class PackRegistry {
         ImportedPack pack = packs.get(fileName.toLowerCase(Locale.ROOT));
         if (pack != null) {
             pack.enabled = enabled;
-<<<<<<< HEAD
-=======
             invalidateActivePackCache();
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             save();
         }
     }
@@ -298,10 +278,7 @@ public final class PackRegistry {
     public synchronized void delete(String fileName) {
         ImportedPack pack = packs.remove(fileName.toLowerCase(Locale.ROOT));
         if (pack != null) {
-<<<<<<< HEAD
-=======
             invalidateActivePackCache();
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             BedrockPackImporter.deleteRecursively(pack.packDirectory(generatedFolder()));
             try {
                 Files.deleteIfExists(importFolder().resolve(pack.fileName));

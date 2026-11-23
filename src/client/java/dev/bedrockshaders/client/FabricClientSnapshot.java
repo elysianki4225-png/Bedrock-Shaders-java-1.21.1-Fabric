@@ -7,10 +7,7 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.math.BlockPos;
-<<<<<<< HEAD
-=======
 import net.minecraft.world.World;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
 import net.minecraft.world.biome.Biome;
 
 /**
@@ -56,8 +53,6 @@ public final class FabricClientSnapshot implements ClientSnapshot {
     }
 
     @Override
-<<<<<<< HEAD
-=======
     public boolean inNether() {
         ClientWorld current = world();
         return current != null && current.getRegistryKey() == World.NETHER;
@@ -70,7 +65,6 @@ public final class FabricClientSnapshot implements ClientSnapshot {
     }
 
     @Override
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
     public float tickDelta() {
         return client.getRenderTickCounter().getTickDelta(false);
     }

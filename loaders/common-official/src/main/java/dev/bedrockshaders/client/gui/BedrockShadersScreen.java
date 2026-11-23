@@ -26,11 +26,8 @@ public final class BedrockShadersScreen extends Screen {
     private static final int COLUMN_WIDTH = 200;
     private static final int ROW_HEIGHT = 20;
     private static final int ROW_GAP = 4;
-<<<<<<< HEAD
-=======
     /** Pixels per wheel notch: one row, so the content tracks the wheel predictably. */
     private static final int SCROLL_STEP = 24;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
 
     private enum Page {
         PRESETS("bedrock_shaders.page.presets"),
@@ -48,11 +45,6 @@ public final class BedrockShadersScreen extends Screen {
         }
     }
 
-<<<<<<< HEAD
-    private final Screen parent;
-    private Page page = Page.PRESETS;
-
-=======
     private static final int TOP = 44;
     /** Bottom of the scrollable region: the footer (status + Done button) lives below it. */
     private int contentBottom() {
@@ -67,7 +59,6 @@ public final class BedrockShadersScreen extends Screen {
     /** Height the current page needs, computed while building it. */
     private int contentHeight;
 
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
     public BedrockShadersScreen(Screen parent) {
         super(Component.translatable("bedrock_shaders.title"));
         this.parent = parent;
@@ -81,15 +72,10 @@ public final class BedrockShadersScreen extends Screen {
             return;
         }
         int centerX = width / 2;
-<<<<<<< HEAD
-        int top = 44;
-        buildPage(top, centerX);
-=======
         int top = TOP - scroll;
         contentHeight = buildPage(top, centerX);
         // A page that no longer fits must not be left scrolled past its end.
         clampScroll();
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
         addPageButtons(centerX);
 
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> onClose())
@@ -118,9 +104,6 @@ public final class BedrockShadersScreen extends Screen {
         this.init();
     }
 
-<<<<<<< HEAD
-    private void buildPage(int top, int centerX) {
-=======
     /**
      * Builds the widgets for the active page.
      *
@@ -128,7 +111,6 @@ public final class BedrockShadersScreen extends Screen {
      *         screen space; the caller uses it to bound scrolling.
      */
     private int buildPage(int top, int centerX) {
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
         BedrockConfig config = ConfigManager.get().config();
         switch (page) {
             case PRESETS -> {
@@ -142,10 +124,7 @@ public final class BedrockShadersScreen extends Screen {
                 }
                 addRenderableWidget(toggle(centerX - 100, y, 200, "bedrock_shaders.option.enabled",
                         config.enabled, value -> config.enabled = value));
-<<<<<<< HEAD
-=======
                 return y + ROW_HEIGHT;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             }
             case ATMOSPHERE -> {
                 int y = top;
@@ -166,10 +145,7 @@ public final class BedrockShadersScreen extends Screen {
                 y += ROW_HEIGHT + ROW_GAP;
                 addRenderableWidget(slider(centerX - 100, y, 200, "bedrock_shaders.option.sun_intensity",
                         config.sunIntensity, 0.0F, 3.0F, value -> config.sunIntensity = value));
-<<<<<<< HEAD
-=======
                 return y + ROW_HEIGHT;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             }
             case WATER -> {
                 int y = top;
@@ -187,10 +163,7 @@ public final class BedrockShadersScreen extends Screen {
                 y += ROW_HEIGHT + ROW_GAP;
                 addRenderableWidget(slider(centerX - 100, y, 200, "bedrock_shaders.option.caustics",
                         config.caustics, 0.0F, 2.0F, value -> config.caustics = value));
-<<<<<<< HEAD
-=======
                 return y + ROW_HEIGHT;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             }
             case EFFECTS -> {
                 int y = top;
@@ -211,10 +184,7 @@ public final class BedrockShadersScreen extends Screen {
                 y += ROW_HEIGHT + ROW_GAP;
                 addRenderableWidget(slider(centerX - 100, y, 200, "bedrock_shaders.option.godray_strength",
                         config.godrayStrength, 0.0F, 3.0F, value -> config.godrayStrength = value));
-<<<<<<< HEAD
-=======
                 return y + ROW_HEIGHT;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             }
             case GRADE -> {
                 int y = top;
@@ -238,10 +208,7 @@ public final class BedrockShadersScreen extends Screen {
                                 c.exposure = 1.0F;
                             });
                         }).bounds(centerX - 100, y, 200, ROW_HEIGHT).build());
-<<<<<<< HEAD
-=======
                 return y + ROW_HEIGHT;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             }
             case PACKS -> {
                 int y = top;
@@ -264,10 +231,7 @@ public final class BedrockShadersScreen extends Screen {
                                     rebuild();
                                 })
                         .bounds(centerX - 100, y, 200, ROW_HEIGHT).build());
-<<<<<<< HEAD
-=======
                 return y + ROW_HEIGHT;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
             }
             case SYSTEM -> {
                 int y = top;
@@ -283,10 +247,6 @@ public final class BedrockShadersScreen extends Screen {
                 addRenderableWidget(Button.builder(Component.translatable("bedrock_shaders.action.reset_all"),
                         button -> ConfigManager.get().resetToDefaults())
                         .bounds(centerX - 100, y, 200, ROW_HEIGHT).build());
-<<<<<<< HEAD
-            }
-        }
-=======
                 return y + ROW_HEIGHT;
             }
         }
@@ -318,7 +278,6 @@ public final class BedrockShadersScreen extends Screen {
         clampScroll();
         rebuild();
         return true;
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
     }
 
     private void applyPreset(QualityPreset preset) {
@@ -327,18 +286,11 @@ public final class BedrockShadersScreen extends Screen {
         rebuild();
     }
 
-<<<<<<< HEAD
-    private CycleButton<Boolean> toggle(int x, int y, int width, String key, boolean initial,
-                                                java.util.function.Consumer<Boolean> setter) {
-        return CycleButton.onOffBuilder(initial)
-                .create(x, y, width, ROW_HEIGHT, Component.translatable(key),
-=======
     private CyclingButton<Boolean> toggle(int x, int y, int width, String key, boolean initial,
                                                 java.util.function.Consumer<Boolean> setter) {
         return CyclingButton.onOffBuilder()
                 .initially(initial)
                 .build(x, y, width, ROW_HEIGHT, Component.translatable(key),
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
                         (button, value) -> {
                             setter.accept(value);
                             ConfigManager.get().markDirty();
@@ -364,8 +316,6 @@ public final class BedrockShadersScreen extends Screen {
                         : Component.translatable("bedrock_shaders.status.fallback"),
                 assets.parsedFiles(), frame.fogId()).getString();
         context.drawCenteredString(font, Component.literal(status), width / 2, height - 44, 0x9BB7D4);
-<<<<<<< HEAD
-=======
         // Tell the user there is more below (and above) when the page does not fit.
         if (maxScroll() > 0) {
             if (scroll > 0) {
@@ -379,7 +329,6 @@ public final class BedrockShadersScreen extends Screen {
                         width / 2, contentBottom() - 10, 0x8899AA);
             }
         }
->>>>>>> 65b9f7e (feat(ux): scrollable settings menu, and a cheaper frame path)
         if (ConfigManager.get().isDirty()) {
             context.drawString(font,
                     Component.translatable("bedrock_shaders.hint.unsaved"), 6, height - 52, 0xE0C060);
