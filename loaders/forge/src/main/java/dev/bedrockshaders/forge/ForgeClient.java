@@ -57,7 +57,7 @@ public final class ForgeClient {
             @Override
             public java.util.List<String> loadedModIds() {
                 java.util.List<String> ids = new ArrayList<>();
-                for (net.minecraftforge.fml.ModInfo info : net.minecraftforge.fml.ModList.get().getMods()) {
+                for (net.minecraftforge.forgespi.language.IModInfo info : net.minecraftforge.fml.ModList.get().getMods()) {
                     ids.add(info.getModId());
                 }
                 return ids;

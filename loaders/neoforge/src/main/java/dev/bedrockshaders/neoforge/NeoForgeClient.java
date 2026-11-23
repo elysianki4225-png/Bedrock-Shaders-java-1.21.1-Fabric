@@ -49,7 +49,7 @@ public final class NeoForgeClient {
             @Override
             public java.util.List<String> loadedModIds() {
                 java.util.List<String> ids = new ArrayList<>();
-                for (net.neoforged.fml.ModInfo info : net.neoforged.fml.ModList.get().getMods()) {
+                for (net.neoforged.neoforgespi.language.IModInfo info : net.neoforged.fml.ModList.get().getMods()) {
                     ids.add(info.getModId());
                 }
                 return ids;

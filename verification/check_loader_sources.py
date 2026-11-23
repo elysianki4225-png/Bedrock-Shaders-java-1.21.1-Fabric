@@ -38,6 +38,29 @@ YARN_ONLY = re.compile(
 )
 
 
+# Classes that look plausible but live somewhere else (or nowhere) in the 1.21.1 Forge/
+# NeoForge toolchains. Each cost a CI round: 'ModInfo' is an implementation class in the
+# loader internals, not the public API, which is IModInfo in the forgespi/neoforgespi
+# package. These cannot be type-checked offline, so at least the known traps are named.
+LOADER_API_TRAPS = [
+    ("net.minecraftforge.fml.ModInfo", "use net.minecraftforge.forgespi.language.IModInfo"),
+    ("net.neoforged.fml.ModInfo", "use net.neoforged.neoforgespi.language.IModInfo"),
+]
+
+
+def check_loader_api() -> list[str]:
+    problems = []
+    roots = [ROOT / "loaders" / "forge" / "src", ROOT / "loaders" / "neoforge" / "src"]
+    for root in roots:
+        for path in sorted(root.rglob("*.java")):
+            text = path.read_text(encoding="utf-8")
+            rel = path.relative_to(ROOT).as_posix()
+            for needle, advice in LOADER_API_TRAPS:
+                if needle in text:
+                    problems.append(f"{rel}: {needle} does not exist ({advice})")
+    return problems
+
+
 def main() -> int:
     if not SHARED.is_dir():
         print(f"missing shared source set: {SHARED}", file=sys.stderr)
@@ -62,6 +85,8 @@ def main() -> int:
             for pattern, label in patterns:
                 if pattern.search(code):
                     problems.append(f"{rel}:{number}: {label} in the shared source set -> {line.strip()}")
+
+    problems.extend(check_loader_api())
 
     print(f"checked {len(files)} shared source files")
     if problems:
