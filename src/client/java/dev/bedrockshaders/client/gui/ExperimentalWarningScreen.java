@@ -3,6 +3,7 @@ package dev.bedrockshaders.client.gui;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 
 import java.util.List;
@@ -64,7 +65,7 @@ public class ExperimentalWarningScreen extends Screen {
     protected void init() {
         int y = this.height - 52;
         this.addDrawableChild(ButtonWidget.builder(Text.translatable(acceptKey), button -> {
-            close();
+            close();  // Screen#close returns to the parent screen
             if (onAccept != null) {
                 onAccept.run();
             }
@@ -76,29 +77,23 @@ public class ExperimentalWarningScreen extends Screen {
                 .dimensions(this.width / 2 + 5, y, 150, 20).build());
     }
 
-    private void close() {
-        if (this.client != null) {
-            this.client.setScreen(parent);
-        }
-    }
-
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
-        context.drawCenteredString(this.textRenderer, this.title, this.width / 2, 40, 0xFFAA00);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 40, 0xFFAA00);
 
-        List<Text> body = this.textRenderer.wrapLines(Text.translatable(kind.bodyKey()),
+        List<OrderedText> body = this.textRenderer.wrapLines(Text.translatable(kind.bodyKey()),
                 Math.max(180, this.width - 80));
         int y = 70;
-        for (Text line : body) {
-            context.drawCenteredString(this.textRenderer, line, this.width / 2, y, 0xDDDDDD);
+        for (OrderedText line : body) {
+            context.drawCenteredTextWithShadow(this.textRenderer, line, this.width / 2, y, 0xDDDDDD);
             y += 11;
         }
 
         if (!detailLines.isEmpty()) {
             y += 8;
             for (String detail : detailLines) {
-                context.drawCenteredString(this.textRenderer, Text.literal(detail),
+                context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(detail),
                         this.width / 2, y, 0x8FA8BF);
                 y += 10;
             }

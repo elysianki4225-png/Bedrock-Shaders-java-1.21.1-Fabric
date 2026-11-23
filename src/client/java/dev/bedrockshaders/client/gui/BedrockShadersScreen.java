@@ -15,6 +15,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
+import java.util.List;
 
 
 /**
@@ -244,7 +245,7 @@ public final class BedrockShadersScreen extends Screen {
                                 // Enabling is the risky direction: confirm first, and only
                                 // then write the flag. Cancelling leaves it off.
                                 MinecraftClient.getInstance().setScreen(
-                                        new ExperimentalWarningScreen(this,
+                                        new ExperimentalWarningScreen(BedrockShadersScreen.this,
                                                 ExperimentalWarningScreen.Kind.ENABLE_RENDER_DRAGON,
                                                 List.of(),
                                                 "bedrock_shaders.action.enable_anyway",
