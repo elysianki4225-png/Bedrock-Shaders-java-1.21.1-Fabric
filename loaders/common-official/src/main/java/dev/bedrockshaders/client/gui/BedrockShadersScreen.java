@@ -298,9 +298,10 @@ public final class BedrockShadersScreen extends Screen {
 
     private CycleButton<Boolean> toggle(int x, int y, int width, String key, boolean initial,
                                                 java.util.function.Consumer<Boolean> setter) {
-        return CycleButton.onOffBuilder()
-                .withInitialValue(initial)
-                .build(x, y, width, ROW_HEIGHT, Component.translatable(key),
+        // Official names: the builder is created with its initial value and finishes with
+        // create(...); Yarn's equivalents are onOffBuilder().initially(..).build(..).
+        return CycleButton.onOffBuilder(initial)
+                .create(x, y, width, ROW_HEIGHT, Component.translatable(key),
                         (button, value) -> {
                             setter.accept(value);
                             ConfigManager.get().markDirty();
