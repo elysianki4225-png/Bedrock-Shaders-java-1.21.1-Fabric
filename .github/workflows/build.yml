@@ -164,7 +164,14 @@ jobs:
           grep -E '^> Task' build.log | tail -30 || true
           echo "--- jars in the build tree ---"
           find build -maxdepth 4 -name '*.jar' -printf '%p %s bytes\n' | sort || true
-          jar=$(find build -maxdepth 4 -name '*.jar' ! -name '*-sources.jar' -print -quit)
+          # Exclude toolchain intermediates (neoform/mcp/caches produce multi-MB merged
+          # Minecraft jars) and prefer the project's own archive name.
+          jar=$(find build -maxdepth 4 -name "bedrock-shaders-*-${{ matrix.loader }}-*.jar" \
+                   ! -name '*-sources.jar' -print -quit)
+          if [ -z "$jar" ]; then
+            jar=$(find build -maxdepth 4 -name '*.jar' ! -name '*-sources.jar' \
+                    ! -path '*/neoform/*' ! -path '*/mcp/*' ! -name '*-merged.jar' -print -quit)
+          fi
           if [ -z "$jar" ]; then
             echo "::error::The ${{ matrix.loader }} build succeeded but produced no jar"
             exit 1

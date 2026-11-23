@@ -25,3 +25,7 @@ verification/out/
 # Offline verification tooling
 verification/node_modules/
 verification/out/
+
+# Toolchain intermediates must never reach dist/ (NeoForm merges multi-MB Minecraft jars)
+dist/*merged*.jar
+dist/*neoform*.jar
