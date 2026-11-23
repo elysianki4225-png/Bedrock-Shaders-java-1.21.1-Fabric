@@ -1,6 +1,7 @@
 package dev.bedrockshaders.client;
 
 import dev.bedrockshaders.BedrockShadersMod;
+import dev.bedrockshaders.GamePaths;
 import dev.bedrockshaders.client.assets.BedrockAssetLibrary;
 import dev.bedrockshaders.client.command.BedrockShadersCommand;
 import dev.bedrockshaders.client.pack.BedrockPackImporter;
@@ -42,6 +43,12 @@ public final class BedrockShadersClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // Fabric is the only loader whose paths are resolved here rather than from an
+        // FML service; everything downstream reads GamePaths so the shared pack code stays
+        // free of loader imports.
+        GamePaths.set(FabricLoader.getInstance().getConfigDir(),
+                FabricLoader.getInstance().getGameDir());
+
         ConfigManager.get().load();
 
         // Instance folder that behaves like Iris' shaderpacks folder: drop a .mcpack in

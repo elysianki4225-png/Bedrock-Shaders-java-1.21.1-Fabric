@@ -1,4 +1,4 @@
-package dev.bedrockshaders.client;
+package dev.bedrockshaders;
 
 import java.nio.file.Path;
 

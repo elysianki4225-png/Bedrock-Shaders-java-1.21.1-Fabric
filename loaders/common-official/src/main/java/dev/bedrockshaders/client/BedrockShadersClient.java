@@ -1,5 +1,7 @@
 package dev.bedrockshaders.client;
 
+import dev.bedrockshaders.GamePaths;
+
 import dev.bedrockshaders.BedrockShadersMod;
 import dev.bedrockshaders.client.assets.BedrockAssetLibrary;
 import dev.bedrockshaders.client.command.BedrockShadersCommand;

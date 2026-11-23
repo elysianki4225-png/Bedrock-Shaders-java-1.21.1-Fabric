@@ -2,7 +2,7 @@ package dev.bedrockshaders.client;
 
 import dev.bedrockshaders.BedrockShadersMod;
 import dev.bedrockshaders.config.BedrockConfig;
-import net.fabricmc.loader.api.FabricLoader;
+import dev.bedrockshaders.GamePaths;
 
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -17,7 +17,10 @@ public final class ConfigManager {
     private static final ConfigManager INSTANCE = new ConfigManager();
 
     private BedrockConfig config = BedrockConfig.defaults();
-    private final Path path = FabricLoader.getInstance().getConfigDir().resolve(BedrockShadersMod.MOD_ID + ".json");
+    /** Resolved on first use: the platform sets {@link GamePaths} before the first load. */
+    private Path path() {
+        return GamePaths.configDir.resolve(BedrockShadersMod.MOD_ID + ".json");
+    }
     private final Deque<BedrockConfig> undo = new ArrayDeque<>();
     private boolean dirty = false;
 
@@ -33,13 +36,13 @@ public final class ConfigManager {
     }
 
     public void load() {
-        config = BedrockConfig.load(path);
+        config = BedrockConfig.load(path());
         dirty = false;
-        BedrockShadersMod.LOGGER.info("Bedrock Shaders config loaded from {}", path);
+        BedrockShadersMod.LOGGER.info("Bedrock Shaders config loaded from {}", path());
     }
 
     public void save() {
-        config.save(path);
+        config.save(path());
         dirty = false;
     }
 

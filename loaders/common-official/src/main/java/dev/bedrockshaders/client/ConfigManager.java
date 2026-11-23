@@ -2,7 +2,7 @@ package dev.bedrockshaders.client;
 
 import dev.bedrockshaders.BedrockShadersMod;
 import dev.bedrockshaders.config.BedrockConfig;
-import dev.bedrockshaders.client.GamePaths;
+import dev.bedrockshaders.GamePaths;
 
 import java.nio.file.Path;
 import java.util.ArrayDeque;
