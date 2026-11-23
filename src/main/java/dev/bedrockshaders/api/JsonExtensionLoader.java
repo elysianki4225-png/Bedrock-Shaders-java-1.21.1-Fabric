@@ -1,5 +1,6 @@
 package dev.bedrockshaders.api;
 
+import dev.bedrockshaders.BedrockShadersMod;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

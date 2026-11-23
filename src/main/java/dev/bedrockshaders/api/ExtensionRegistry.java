@@ -1,5 +1,7 @@
 package dev.bedrockshaders.api;
 
+import dev.bedrockshaders.BedrockShadersMod;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;

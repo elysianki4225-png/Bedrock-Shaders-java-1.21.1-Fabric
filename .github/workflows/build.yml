@@ -28,6 +28,11 @@ jobs:
       - name: Check Java source structure
         run: python3 verification/check_java_syntax.py
 
+      # A subpackage does not see its parent package; the "package X does not exist"
+      # error this produces is worth catching before a 3-loader Gradle matrix.
+      - name: Check cross-package imports
+        run: python3 verification/check_imports.py
+
       - name: Validate shaders (Khronos glslang)
         run: |
           cd verification
