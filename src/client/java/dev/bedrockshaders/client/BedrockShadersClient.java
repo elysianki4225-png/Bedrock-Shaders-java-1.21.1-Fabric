@@ -114,6 +114,14 @@ public final class BedrockShadersClient implements ClientModInitializer {
                 pendingPackSync = false;
                 ImportedPackActivator.reload(client);
             }
+            // One-time hint on first join: without it a new player has no way to know the
+            // menu exists or that a key toggles the renderer.
+            if (pendingWelcome && client.player != null && client.world != null) {
+                pendingWelcome = false;
+                client.player.sendMessage(Text.translatable("bedrock_shaders.message.welcome",
+                        openMenuKey.getBoundKeyLocalizedText(),
+                        toggleKey.getBoundKeyLocalizedText()), false);
+            }
             while (openMenuKey.wasPressed()) {
                 if (client.currentScreen == null) {
                     ConfigManager.get().armUndoOnOpen();
@@ -139,6 +147,9 @@ public final class BedrockShadersClient implements ClientModInitializer {
 
     /** Set once the client is far enough through startup for a resource reload. */
     private static boolean pendingPackSync = true;
+
+    /** Cleared after the first join, so the welcome hint shows exactly once per launch. */
+    private static boolean pendingWelcome = true;
 
     public static boolean isPackRegistered() {
         return packRegistered;

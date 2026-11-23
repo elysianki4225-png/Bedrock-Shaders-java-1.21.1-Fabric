@@ -247,6 +247,16 @@ public final class BedrockShadersScreen extends Screen {
                 addDrawableChild(ButtonWidget.builder(Text.translatable("bedrock_shaders.action.reset_all"),
                         button -> ConfigManager.get().resetToDefaults())
                         .dimensions(centerX - 100, y, 200, ROW_HEIGHT).build());
+                y += ROW_HEIGHT + ROW_GAP;
+                ButtonWidget undoButton = ButtonWidget.builder(
+                                Text.translatable("bedrock_shaders.action.undo"),
+                                button -> {
+                                    ConfigManager.get().undo();
+                                    rebuild();
+                                })
+                        .dimensions(centerX - 100, y, 200, ROW_HEIGHT).build();
+                undoButton.active = ConfigManager.get().canUndo();
+                addDrawableChild(undoButton);
                 return y + ROW_HEIGHT;
             }
         }

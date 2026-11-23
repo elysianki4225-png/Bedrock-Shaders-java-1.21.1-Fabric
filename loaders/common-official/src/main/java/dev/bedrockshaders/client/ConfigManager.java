@@ -78,6 +78,11 @@ public final class ConfigManager {
         }
     }
 
+    /** True when there is a change to undo; the settings screen disables the button otherwise. */
+    public boolean canUndo() {
+        return !undo.isEmpty();
+    }
+
     public void undo() {
         BedrockConfig previous = undo.poll();
         if (previous != null) {
