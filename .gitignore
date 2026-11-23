@@ -29,3 +29,8 @@ verification/out/
 # Toolchain intermediates must never reach dist/ (NeoForm merges multi-MB Minecraft jars)
 dist/*merged*.jar
 dist/*neoform*.jar
+
+# Loader CI diagnostics written inside loaders/<loader>/
+loaders/*/build.log
+loaders/*/build-summary.txt
+loaders/*/gradle-version.log

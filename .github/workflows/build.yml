@@ -142,6 +142,44 @@ jobs:
           # broken loader build look green while the locator fell back to a toolchain jar.
           exit $status
 
+      - name: Write ${{ matrix.loader }} build summary
+        if: always()
+        working-directory: loaders/${{ matrix.loader }}
+        run: |
+          set +e
+          {
+            echo "loader: ${{ matrix.loader }}"
+            echo "run: $GITHUB_RUN_ID  sha: $GITHUB_SHA"
+            echo
+            echo "=== archivesName / version ==="
+            grep -nE 'archivesName|^version' build.gradle
+            echo
+            echo "=== tasks that ran ==="
+            grep -E '^> Task' build.log | tail -40
+            echo
+            echo "=== every jar under build/ ==="
+            find build -name '*.jar' -printf '%p %s bytes\n' | sort
+            echo
+            echo "=== every file under build/libs ==="
+            find build/libs -maxdepth 2 -printf '%p %s bytes\n' 2>/dev/null | sort
+            echo
+            echo "=== build.log tail ==="
+            tail -60 build.log
+          } > build-summary.txt 2>&1
+          cat build-summary.txt
+
+      # Actions log blobs are unreadable from the maintainer's sandbox, and a jar that
+      # lands outside build/libs is invisible to the locator. Always upload the summary.
+      - name: Upload ${{ matrix.loader }} build summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.loader }}-build-summary
+          if-no-files-found: warn
+          path: |
+            loaders/${{ matrix.loader }}/build-summary.txt
+            loaders/${{ matrix.loader }}/build.log
+
       # The sandbox cannot read Actions log blobs, so a failing loader build posts its
       # own diagnostics as an issue: that is the only channel back to the maintainer.
       - name: Publish ${{ matrix.loader }} diagnostics
@@ -184,14 +222,12 @@ jobs:
           find build -maxdepth 4 -name '*.jar' -printf '%p %s bytes\n' | sort || true
           # Exclude toolchain intermediates (neoform/mcp/caches produce multi-MB merged
           # Minecraft jars) and prefer the project's own archive name.
-          jar=$(find build -maxdepth 4 -name "bedrock-shaders-${{ matrix.loader }}-*.jar" \
+          jar=$(find build -name "bedrock-shaders-${{ matrix.loader }}-*.jar" \
                    ! -name '*-sources.jar' -print -quit)
           if [ -z "$jar" ]; then
-            jar=$(find build -maxdepth 4 -name '*.jar' ! -name '*-sources.jar' \
-                    ! -path '*/neoform/*' ! -path '*/mcp/*' ! -name '*-merged.jar' -print -quit)
-          fi
-          if [ -z "$jar" ]; then
-            echo "::error::The ${{ matrix.loader }} build succeeded but produced no jar"
+            echo "::error::The ${{ matrix.loader }} build produced no bedrock-shaders-${{ matrix.loader }}-*.jar"
+            echo "--- every jar under loaders/${{ matrix.loader }}/build ---"
+            find build -name '*.jar' -printf '%p %s bytes\n' | sort | head -40 || true
             exit 1
           fi
           echo "jar=$jar" >> "$GITHUB_OUTPUT"
@@ -219,10 +255,10 @@ jobs:
           # multi-MB merged Minecraft jars (build/*merged*.jar, neoform caches). Picking
           # one of those copied it into dist/, where .gitignore dropped it, and the job
           # still reported success with no jar published. Match the loader name exactly.
-          jar=$(find build/libs -maxdepth 1 -name "bedrock-shaders-${{ matrix.loader }}-*.jar" \
+          jar=$(find build -name "bedrock-shaders-${{ matrix.loader }}-*.jar" \
                   ! -name '*-sources.jar' -print -quit)
           if [ -z "$jar" ]; then
-            echo "::error::no build/libs/bedrock-shaders-${{ matrix.loader }}-*.jar to publish"
+            echo "::error::no bedrock-shaders-${{ matrix.loader }}-*.jar to publish"
             find build -name '*.jar' -printf '%p %s bytes\n' | head -20 || true
             exit 1
           fi
