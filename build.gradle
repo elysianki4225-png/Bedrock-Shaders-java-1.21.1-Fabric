@@ -69,6 +69,20 @@ jar {
     }
 }
 
+// withSourcesJar() copies the *unprocessed* src/main/resources into the sources artifact,
+// so fabric.mod.json ships with a literal ${version}: expandable templating that never got
+// expanded. Point the sources jar at the processed output instead. The source set still
+// carries the client tree, so the artifact stays a readable reference for all four ports.
+tasks.named('sourcesJar') {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(sourceSets.main.output) {
+        include 'fabric.mod.json', 'quilt.mod.json', 'assets/**'
+    }
+    from(sourceSets.client.output) {
+        include '**/*.java'
+    }
+}
+
 
 // ---------------------------------------------------------------------------
 // Quilt Loader build.
@@ -85,7 +99,14 @@ def quiltJar = tasks.register('quiltJar', Jar) {
     archiveClassifier = ''
     from(sourceSets.main.output)
     from(sourceSets.client.output)
-    from(project.file('src/quilt/resources'))
+    // quilt.mod.json carries ${version} like fabric.mod.json does. Copying the raw
+    // directory shipped the placeholder into the jar, which Quilt Loader rejects; expand it
+    // here the way processResources does for the Fabric metadata.
+    from(project.file('src/quilt/resources')) {
+        filesMatching('quilt.mod.json') {
+            expand 'version': project.version
+        }
+    }
     from('LICENSE') {
         rename { "${it}_${project.archives_base_name}-quilt" }
     }

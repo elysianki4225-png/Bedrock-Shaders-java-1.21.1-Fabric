@@ -46,6 +46,20 @@ jobs:
       - name: Test shader family detection
         run: python3 verification/test_families.py
 
+      # dist/ is committed, so the artifacts that back the README download links can be
+      # inspected without a build: each jar must name its loader and carry that loader's
+      # metadata. Skipped while dist/ is empty (a fresh clone before the first publish).
+      - name: Validate README download links
+        run: python3 verification/check_readme_links.py
+
+      - name: Validate published jars in dist/
+        run: |
+          if compgen -G "dist/*.jar" > /dev/null; then
+            python3 verification/check_dist.py
+          else
+            echo "dist/ is empty; nothing published yet"
+          fi
+
       - name: Build with Gradle
         id: gradle
         run: |
