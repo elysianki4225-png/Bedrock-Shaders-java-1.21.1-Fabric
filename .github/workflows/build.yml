@@ -46,19 +46,9 @@ jobs:
       - name: Test shader family detection
         run: python3 verification/test_families.py
 
-      # dist/ is committed, so the artifacts that back the README download links can be
-      # inspected without a build: each jar must name its loader and carry that loader's
-      # metadata. Skipped while dist/ is empty (a fresh clone before the first publish).
+      # The READMEs are the download page; this checks their links without a build.
       - name: Validate README download links
         run: python3 verification/check_readme_links.py
-
-      - name: Validate published jars in dist/
-        run: |
-          if compgen -G "dist/*.jar" > /dev/null; then
-            python3 verification/check_dist.py
-          else
-            echo "dist/ is empty; nothing published yet"
-          fi
 
       - name: Build with Gradle
         id: gradle
@@ -109,6 +99,17 @@ jobs:
           # pushing so their commit is not lost to a non-fast-forward rejection.
           git pull --rebase --autostash
           git push
+
+      # Inspect what this run published. dist/ is committed, so running this before the
+      # build would grade the previous run's jars instead of the ones just written.
+      - name: Validate published jars in dist/
+        if: "success() && github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'ci: publish')"
+        run: |
+          if compgen -G "dist/*.jar" > /dev/null; then
+            python3 verification/check_dist.py
+          else
+            echo "dist/ is empty; nothing published yet"
+          fi
 
   # Forge and NeoForge are independent Gradle builds (loaders/<loader>) so their
   # toolchains never leak into the Fabric build. They are compiled here, which is the
