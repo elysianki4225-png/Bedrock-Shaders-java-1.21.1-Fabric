@@ -29,6 +29,9 @@ One artifact, one thing to get right.
 **Fabric (and therefore Quilt) is the maintained, optimised target.** The Forge and
 NeoForge ports compile and are updated alongside it, but they are built non-blocking in CI
 while their packaging is finished, so a loader-only failure does not mark the branch red.
+If you have the choice, take the Fabric file: it gets the testing, and both compatibility
+paths below were designed against it. Forge and NeoForge users see a one-time in-game tip
+saying exactly that.
 
 ## Install
 
@@ -115,9 +118,39 @@ Per-pack state is tracked in `bedrock-shaders/index.json`, so unchanged archives
 re-imported and deleted packs are unregistered. The manager screen can toggle, delete and
 open the folder, and it links to vanilla's own resource-pack screen.
 
-**What is not supported:** binary RenderDragon shaders (`*.material.bin`) — those are
-compiled pipeline binaries with no Java Edition equivalent. Only the data-driven Deferred
-Rendering JSON is imported.
+### RenderDragon packs (experimental, off by default)
+
+Bedrock has two shader systems. The old one ships loose fog/lighting/atmosphere/grading
+JSON and is fully importable. **RenderDragon** ships a compiled pipeline instead:
+
+```
+renderer/materials/*.material.bin     <- compiled, unreadable on Java
+renderer/lighting/global.json         <- authored data, importable
+renderer/{shadows,sky,water}/*.json   <- authored data, importable
+```
+
+Those `.material.bin` files are compiled binaries for Bedrock's own pipeline. **Nothing on
+Java Edition can execute them** — there is no equivalent stage and no Java-side compiler.
+What a RenderDragon shader *looks like* on Java has to be reimplemented in GLSL from
+scratch, which is a different project.
+
+So the mod is honest about it rather than pretending:
+
+| Switch | Behaviour |
+| --- | --- |
+| **Off** (default) | A RenderDragon pack is recognised and refused with an explanation. Nothing is silently half-imported. |
+| **On** (Packs → *Experimental: RenderDragon data*) | The authored data half is imported, so the pack's colours, fog and density apply. The compiled binaries are still skipped. |
+
+Enabling the switch opens a warning first, and importing a RenderDragon pack warns again in
+chat *and* marks the row in the pack manager permanently, so a partially-effective pack is
+never mistaken for a bug. Detection reads entry names only — a 60 MB compiled material costs
+one string, not a decompression.
+
+`verification/test_renderdragon.py` pins 12 archive shapes (binary-only, data-only, both,
+uppercase paths, nested archives) and 9 path mappings.
+
+**What is still not supported:** the compiled shaders themselves. `*.material.bin` cannot be
+translated to Java Edition, with or without the switch.
 
 ## One renderer, three artifacts
 

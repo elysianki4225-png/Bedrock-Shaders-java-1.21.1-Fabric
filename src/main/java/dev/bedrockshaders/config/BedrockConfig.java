@@ -72,6 +72,17 @@ public final class BedrockConfig {
     // Imported Bedrock packs (.mcpack dropped into bedrock-shaders/packs)
     public boolean autoImportPacks = true;
     public boolean deletePackAfterImport = false;
+    /**
+     * Experimental: also read the data half of a RenderDragon pack.
+     *
+     * <p>RenderDragon ships a compiled pipeline ({@code .material.bin}) that no Java mod can
+     * execute, plus authored fog/lighting/sky/shadow JSON. With this off, a RenderDragon
+     * pack is recognised and refused with an explanation. With it on, the JSON half is
+     * imported (so the pack's colours apply) and the binaries are still skipped. It never
+     * makes the compiled shaders run - that is impossible on Java - and it is off by
+     * default because the JSON half alone gives a partial look that can disappoint.</p>
+     */
+    public boolean experimentalRenderDragon = false;
 
     // Advanced / debug
     public float renderScale = 1.0F;
@@ -148,6 +159,7 @@ public final class BedrockConfig {
         temperatureKelvin = other.temperatureKelvin;
         autoImportPacks = other.autoImportPacks;
         deletePackAfterImport = other.deletePackAfterImport;
+        experimentalRenderDragon = other.experimentalRenderDragon;
         renderScale = other.renderScale;
         debugOverlay = other.debugOverlay;
         logFrameDiagnostics = other.logFrameDiagnostics;

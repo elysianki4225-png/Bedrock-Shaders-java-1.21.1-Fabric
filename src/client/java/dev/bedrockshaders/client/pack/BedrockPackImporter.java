@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.bedrockshaders.BedrockShadersMod;
+import dev.bedrockshaders.client.ConfigManager;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,10 +43,28 @@ public final class BedrockPackImporter {
     private static final int MAX_NESTING = 4;
     private static final long MAX_ENTRY_BYTES = 8L * 1024L * 1024L;
 
-    /** Result of one import attempt. */
-    public record Result(boolean success, ImportedPack pack, BedrockPackKind kind, String message) {
+    /**
+     * Result of one import attempt.
+     *
+     * <p>{@code detection} is the RenderDragon finding: always present, and
+     * {@link RenderDragonSupport.Detection#none()} for ordinary deferred-data packs. It is
+     * carried even when the import failed, because "this is a RenderDragon pack" is the
+     * most useful thing to tell a user whose archive imported nothing.</p>
+     */
+    public record Result(boolean success, ImportedPack pack, BedrockPackKind kind, String message,
+                         RenderDragonSupport.Detection detection) {
         public static Result failure(String message) {
-            return new Result(false, null, BedrockPackKind.UNSUPPORTED, message);
+            return new Result(false, null, BedrockPackKind.UNSUPPORTED, message,
+                    RenderDragonSupport.Detection.none());
+        }
+
+        public static Result failure(String message, RenderDragonSupport.Detection detection) {
+            return new Result(false, null, BedrockPackKind.UNSUPPORTED, message, detection);
+        }
+
+        /** True when this archive is a RenderDragon pack, imported or not. */
+        public boolean renderDragon() {
+            return detection.renderDragon();
         }
     }
 
@@ -77,10 +96,29 @@ public final class BedrockPackImporter {
             return Result.failure("cannot create temp directory: " + e.getMessage());
         }
         try {
-            boolean found = extract(archive, staging, 0);
+            // RenderDragon detection has to happen before extraction: the compiled pipeline
+            // is what the ordinary extractor deliberately drops, so afterwards there is
+            // nothing left to recognise.
+            RenderDragonSupport.Detection detection = detectRenderDragon(archive);
+            boolean acceptRenderDragon = ConfigManager.get().config().experimentalRenderDragon;
+            boolean disabledBySwitch = detection.renderDragon() && !acceptRenderDragon;
+
+            boolean found = extract(archive, staging, 0, detection, acceptRenderDragon);
             if (!found) {
                 deleteRecursively(staging);
-                return Result.failure("no Bedrock rendering data (fogs/lighting/atmospherics/color_grading)");
+                if (disabledBySwitch) {
+                    return Result.failure(
+                            "RenderDragon pack (" + detection.describe() + ") but experimental "
+                                    + "RenderDragon support is off", detection);
+                }
+                if (detection.binaryOnly()) {
+                    return Result.failure(
+                            "RenderDragon pack with only compiled materials, which no Java "
+                                    + "mod can run (" + detection.describe() + ")", detection);
+                }
+                return Result.failure(
+                        "no Bedrock rendering data (fogs/lighting/atmospherics/color_grading)",
+                        detection);
             }
             Counting counted = count(staging);
             BedrockPackManifest manifest = readManifest(archive, 0);
@@ -89,7 +127,7 @@ public final class BedrockPackImporter {
                     : BedrockPackKind.DEFERRED_DATA;
             if (kind != BedrockPackKind.DEFERRED_DATA) {
                 deleteRecursively(staging);
-                return Result.failure("archive has no rendering data (" + kind.id() + ")");
+                return Result.failure("archive has no rendering data (" + kind.id() + ")", detection);
             }
 
             String folder = PackRegistry.GENERATED_PREFIX + sanitise(manifest.slug());
@@ -113,13 +151,21 @@ public final class BedrockPackImporter {
             pack.atmosphericFiles = counted.atmospheric;
             pack.gradingFiles = counted.grading;
             pack.hasWaterTable = counted.water;
+            pack.renderDragon = detection.renderDragon();
+            pack.renderDragonBinaries = detection.binaries();
             deleteRecursively(staging);
             BedrockShadersMod.LOGGER.info("Imported Bedrock pack {} -> {}", archive.getFileName(), packDir);
-            return new Result(true, pack, BedrockPackKind.DEFERRED_DATA, pack.describe());
+            if (detection.renderDragon()) {
+                BedrockShadersMod.LOGGER.warn(
+                        "Imported RenderDragon pack {} with experimental support: {}; the compiled "
+                                + "pipeline cannot run on Java, only its data half was applied",
+                        archive.getFileName(), detection.describe());
+            }
+            return new Result(true, pack, BedrockPackKind.DEFERRED_DATA, pack.describe(), detection);
         } catch (IOException | RuntimeException e) {
             deleteRecursively(staging);
             BedrockShadersMod.LOGGER.warn("Failed to import Bedrock archive {}", archive, e);
-            return Result.failure(String.valueOf(e.getMessage()));
+            return Result.failure(String.valueOf(e.getMessage()), RenderDragonSupport.Detection.none());
         }
     }
 
@@ -129,7 +175,9 @@ public final class BedrockPackImporter {
      *
      * @return true when at least one rendering JSON file was copied
      */
-    private static boolean extract(Path archive, Path staging, int depth) throws IOException {
+    private static boolean extract(Path archive, Path staging, int depth,
+                                   RenderDragonSupport.Detection detection,
+                                   boolean acceptRenderDragon) throws IOException {
         if (depth > MAX_NESTING) {
             return false;
         }
@@ -153,11 +201,26 @@ public final class BedrockPackImporter {
                     try (InputStream stream = zip.getInputStream(entry)) {
                         Files.copy(stream, nested, StandardCopyOption.REPLACE_EXISTING);
                     }
-                    if (extract(nested, staging, depth + 1)) {
+                    if (extract(nested, staging, depth + 1, detection, acceptRenderDragon)) {
                         copied = true;
                     }
                     Files.deleteIfExists(nested);
                     continue;
+                }
+                // RenderDragon's authored JSON lives under renderer/. It is only applied
+                // when the experimental switch is on, and the compiled pipeline beside it is
+                // skipped either way: those binaries are unreadable on Java.
+                if (RenderDragonSupport.isBinaryPipeline(name)) {
+                    continue;
+                }
+                if (acceptRenderDragon) {
+                    String renderDragonTarget = RenderDragonSupport.targetFor(name);
+                    if (renderDragonTarget != null) {
+                        copyEntry(zip, entry, staging.resolve("assets").resolve(BedrockShadersMod.MOD_ID)
+                                .resolve("bedrock").resolve(renderDragonTarget));
+                        copied = true;
+                        continue;
+                    }
                 }
                 String target = BedrockPackLayout.targetFor(name);
                 if (target != null) {
@@ -223,6 +286,51 @@ public final class BedrockPackImporter {
             BedrockShadersMod.LOGGER.debug("No readable Bedrock manifest in {}", archive, e);
         }
         return BedrockPackManifest.UNKNOWN;
+    }
+
+    /**
+     * Collects entry names from the archive and every nested archive, then asks
+     * {@link RenderDragonSupport} what they are. Names only: nothing is decompressed, so
+     * even a 60 MB material pack costs one directory walk.
+     */
+    private static RenderDragonSupport.Detection detectRenderDragon(Path archive) {
+        List<String> entries = new ArrayList<>();
+        collectEntryNames(archive, entries, 0);
+        return RenderDragonSupport.detect(entries);
+    }
+
+    private static void collectEntryNames(Path archive, List<String> out, int depth) {
+        if (depth > MAX_NESTING) {
+            return;
+        }
+        try (ZipFile zip = new ZipFile(archive.toFile())) {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                String name = normalise(entry.getName());
+                if (name.isEmpty() || entry.isDirectory()) {
+                    continue;
+                }
+                // Names only, never contents: a 60 MB compiled material costs one string.
+                out.add(name);
+                if (RenderDragonSupport.isBinaryPipeline(name)) {
+                    continue;
+                }
+                if (isArchive(name) && entry.getSize() < 64L * 1024L * 1024L) {
+                    Path nested = Files.createTempFile("bedrock-dragon", ".zip");
+                    try (InputStream stream = zip.getInputStream(entry)) {
+                        Files.copy(stream, nested, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    try {
+                        collectEntryNames(nested, out, depth + 1);
+                    } finally {
+                        Files.deleteIfExists(nested);
+                    }
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            BedrockShadersMod.LOGGER.debug("Could not inspect {} for RenderDragon content", archive, e);
+        }
     }
 
     private static String packMeta(BedrockPackManifest manifest) {

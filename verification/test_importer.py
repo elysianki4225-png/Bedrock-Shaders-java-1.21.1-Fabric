@@ -196,6 +196,28 @@ for code, table in langs.items():
         failures.append(f'{code}.json has unknown keys: {sorted(extra)[:5]}')
 print(f'localisation: {", ".join(f"{k}={len(v)}" for k, v in sorted(langs.items()))}')
 
+# ---- every translation key a source file names must exist, in both languages ----
+# This is the check that would have caught the RenderDragon and Fabric-hint keys: they were
+# added with the wrong prefix and nothing noticed, because a missing key only shows up as a
+# raw "bedrock_shaders.option.renderdragon" string in the GUI at runtime.
+import re
+
+referenced = set()
+for source in ROOT.rglob('*.java'):
+    if '.git' in source.parts:
+        continue
+    for key in re.findall(r'"(bedrock_shaders\.[a-zA-Z0-9_.]+)"', source.read_text(encoding='utf-8')):
+        # Skip fragments used to build another key ("bedrock_shaders.preset." + id).
+        if key.endswith('.'):
+            continue
+        referenced.add(key)
+
+for code, table in langs.items():
+    missing = sorted(referenced - set(table))
+    if missing:
+        failures.append(f'{code}.json missing {len(missing)} referenced key(s): {missing[:6]}')
+print(f'translation keys referenced from Java: {len(referenced)}, all resolved')
+
 if failures:
     print(f'\n{len(failures)} importer test failure(s):')
     for failure in failures:

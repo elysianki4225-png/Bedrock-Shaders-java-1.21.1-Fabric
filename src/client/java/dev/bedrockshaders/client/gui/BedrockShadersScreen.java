@@ -225,7 +225,10 @@ public final class BedrockShadersScreen extends Screen {
                                 button -> {
                                     var registry = dev.bedrockshaders.client.pack.PackRegistry.get();
                                     registry.ensureFolders();
-                                    registry.importPending();
+                                    // Route the results through the same warning queue the
+                                    // automatic import uses, so a RenderDragon pack explains
+                                    // itself here too.
+                                    BedrockShadersClient.reportImported(registry.importPending());
                                     dev.bedrockshaders.client.pack.ImportedPackActivator.invalidate();
                                     dev.bedrockshaders.client.pack.ImportedPackActivator.reload(MinecraftClient.getInstance());
                                     rebuild();
@@ -234,6 +237,26 @@ public final class BedrockShadersScreen extends Screen {
                 y += ROW_HEIGHT + ROW_GAP;
                 addDrawableChild(toggle(centerX - 100, y, 200, "bedrock_shaders.option.family_tuning",
                         config.usePackFamilyTuning, value -> config.usePackFamilyTuning = value));
+                y += ROW_HEIGHT + ROW_GAP;
+                addDrawableChild(toggle(centerX - 100, y, 200, "bedrock_shaders.option.renderdragon",
+                        config.experimentalRenderDragon, value -> {
+                            if (value) {
+                                // Enabling is the risky direction: confirm first, and only
+                                // then write the flag. Cancelling leaves it off.
+                                MinecraftClient.getInstance().setScreen(
+                                        new ExperimentalWarningScreen(this,
+                                                ExperimentalWarningScreen.Kind.ENABLE_RENDER_DRAGON,
+                                                List.of(),
+                                                "bedrock_shaders.action.enable_anyway",
+                                                () -> {
+                                                    config.experimentalRenderDragon = true;
+                                                    ConfigManager.get().markDirty();
+                                                    rebuild();
+                                                }));
+                            } else {
+                                config.experimentalRenderDragon = false;
+                            }
+                        }));
                 return y + ROW_HEIGHT;
             }
             case SYSTEM -> {

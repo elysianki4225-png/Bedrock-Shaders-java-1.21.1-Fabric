@@ -54,6 +54,9 @@ public final class BedrockShadersClient {
     private static KeyMapping openMenuKey;
     private static KeyMapping toggleKey;
     private static boolean pendingPackSync = true;
+
+    /** Cleared after the first world join, so the Fabric recommendation shows once. */
+    private static boolean pendingFabricHint = true;
     private static boolean initialised;
 
     private BedrockShadersClient() {
@@ -134,6 +137,15 @@ public final class BedrockShadersClient {
         if (pendingPackSync) {
             pendingPackSync = false;
             ImportedPackActivator.reload(client);
+        }
+        // Forge/NeoForge builds: one quiet, once-per-launch note that Fabric is the build
+        // this mod is written against. Not a nag (no repeat, no screen, no sound), and it
+        // still fires when the renderer has been downgraded for Iris/VulkanMod, because
+        // that is exactly the situation where the Fabric build would serve them better.
+        if (pendingFabricHint && client.player != null) {
+            pendingFabricHint = false;
+            client.player.displayClientMessage(
+                    Component.translatable("bedrock_shaders.message.prefer_fabric"), false);
         }
         while (openMenuKey != null && openMenuKey.consumeClick()) {
             if (client.screen == null) {

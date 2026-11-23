@@ -180,6 +180,13 @@ public final class BedrockPacksScreen extends Screen {
                     x + width - 100 - badgeWidth + 3, y + 4, 0x9FE0B0);
         }
         context.drawTextWithShadow(textRenderer, Text.literal(pack.describe()), x + 4, y + 14, 0x8899AA);
+        // A RenderDragon pack is importable only in part: say so on the row, not just in the
+        // one-off chat warning. Otherwise a half-working pack looks like a bug months later.
+        if (pack.renderDragon) {
+            String note = Text.translatable("bedrock_shaders.packs.dragon_partial",
+                    pack.renderDragonBinaries).getString();
+            context.drawTextWithShadow(textRenderer, Text.literal(note), x + 4, y + 24, 0xE0A860);
+        }
 
         int toggleX = x + width - 96;
         ButtonWidget toggle = ButtonWidget.builder(

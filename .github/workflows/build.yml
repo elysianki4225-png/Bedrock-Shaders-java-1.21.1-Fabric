@@ -52,6 +52,9 @@ jobs:
       - name: Test mod compatibility matrix
         run: python3 verification/test_compat.py
 
+      - name: Test RenderDragon detection
+        run: python3 verification/test_renderdragon.py
+
       # The READMEs are the download page; this checks their links without a build.
       - name: Validate README download links
         run: python3 verification/check_readme_links.py

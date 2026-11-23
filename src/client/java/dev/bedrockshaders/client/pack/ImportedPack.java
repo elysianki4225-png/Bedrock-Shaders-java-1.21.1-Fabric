@@ -18,6 +18,14 @@ public final class ImportedPack {
      * time from the archive name, display name and description. Empty means generic.
      */
     public String family = "";
+    /**
+     * This archive was a RenderDragon pack and only its data half was imported. Persisted so
+     * the pack list can say so on every later launch, not just in the once-per-import chat
+     * warning: a user who sees a half-working pack months later deserves the explanation.
+     */
+    public boolean renderDragon;
+    /** Compiled material files that were skipped, quoted in the pack list. */
+    public int renderDragonBinaries;
     public String folder = "";
     public int fogFiles;
     public int lightingFiles;
