@@ -6,7 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import dev.bedrockshaders.BedrockShadersMod;
-import dev.bedrockshaders.client.GamePaths;
+import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -52,7 +52,7 @@ public final class PackRegistry {
     }
 
     public static Path root() {
-        return GamePaths.packFolder();
+        return FabricLoader.getInstance().getGameDir().resolve("bedrock-shaders");
     }
 
     public static Path importFolder() {
@@ -64,7 +64,7 @@ public final class PackRegistry {
 
     /** Vanilla's pack folder - the only place Minecraft scans for resource packs. */
     public static Path generatedFolder() {
-        return GamePaths.resourcePacksFolder();
+        return FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
     }
 
     public static Path indexFile() {
@@ -239,15 +239,31 @@ public final class PackRegistry {
      */
     private volatile String activePackCache = "";
 
+    /**
+     * Family of the first enabled deferred-data pack, cached alongside the name. The frame
+     * path reads this every frame, so it must not walk the pack map.
+     */
+    private volatile dev.bedrockshaders.config.ShaderFamily activeFamilyCache =
+            dev.bedrockshaders.config.ShaderFamily.GENERIC;
+
+    /** Tuning family of the active pack; {@code GENERIC} when none is active. */
+    public dev.bedrockshaders.config.ShaderFamily activeFamily() {
+        return activeFamilyCache;
+    }
+
     private void invalidateActivePackCache() {
         String name = "";
+        dev.bedrockshaders.config.ShaderFamily family =
+                dev.bedrockshaders.config.ShaderFamily.GENERIC;
         for (ImportedPack pack : packs.values()) {
             if (pack.enabled && pack.packKind() == BedrockPackKind.DEFERRED_DATA) {
                 name = pack.displayName;
+                family = pack.shaderFamily();
                 break;
             }
         }
         activePackCache = name;
+        activeFamilyCache = family;
     }
 
     /** Name of the first active imported pack, or an empty string when none is loaded. */

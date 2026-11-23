@@ -13,6 +13,11 @@ public final class ImportedPack {
     public String uuid = "";
     public String version = "1.0.0";
     public String kind = BedrockPackKind.DEFERRED_DATA.id();
+    /**
+     * Recognised shader family id ({@code newb}, {@code yss}, ...), detected at import
+     * time from the archive name, display name and description. Empty means generic.
+     */
+    public String family = "";
     public String folder = "";
     public int fogFiles;
     public int lightingFiles;
@@ -35,6 +40,9 @@ public final class ImportedPack {
         pack.kind = kind.id();
         pack.folder = folder;
         pack.importedAt = System.currentTimeMillis();
+        // Detect the family once, at import time, from everything the archive tells us.
+        pack.family = dev.bedrockshaders.config.ShaderFamily
+                .detect(fileName, manifest.name(), manifest.description()).id;
         return pack;
     }
 
@@ -54,6 +62,14 @@ public final class ImportedPack {
     /** Directory of the generated Java resource pack, for the pack manager. */
     public Path packDirectory(Path root) {
         return root.resolve(folder);
+    }
+
+    /** The tuning family this pack belongs to. */
+    public dev.bedrockshaders.config.ShaderFamily shaderFamily() {
+        if (family != null && !family.isEmpty()) {
+            return dev.bedrockshaders.config.ShaderFamily.byId(family);
+        }
+        return dev.bedrockshaders.config.ShaderFamily.detect(fileName, displayName, error);
     }
 
     public String describe() {

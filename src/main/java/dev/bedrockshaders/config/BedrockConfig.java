@@ -24,6 +24,12 @@ public final class BedrockConfig {
     public int preset = QualityPreset.BALANCED.ordinal();
     public boolean replaceVanillaSky = true;
     public boolean vanillaShaderOverrides = true;
+    /**
+     * Apply the recognised shader family's tuning (haze reach, underwater density) on top
+     * of the pack's own data. On by default: without it a Newb pack renders with neutral
+     * defaults and loses the look its author intended.
+     */
+    public boolean usePackFamilyTuning = true;
     public boolean vanillaFogCurve = true;
     public boolean bedrockLightmap = true;
 

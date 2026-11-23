@@ -169,6 +169,16 @@ public final class BedrockPacksScreen extends Screen {
         context.fill(x, y, x + width, y + ROW_HEIGHT - 2, hovered ? 0x90202A38 : 0x80141A22);
         String name = pack.displayName + " " + pack.version;
         context.drawTextWithShadow(textRenderer, Text.literal(name), x + 4, y + 4, 0xFFFFFF);
+        // Show the recognised family next to the counts: it explains why a Newb pack looks
+        // different from a generic one, and tells the user the tuning is intentional.
+        var family = pack.shaderFamily();
+        if (family != dev.bedrockshaders.config.ShaderFamily.GENERIC) {
+            String badge = Text.translatable(family.translationKey).getString();
+            int badgeWidth = textRenderer.getWidth(badge) + 6;
+            context.fill(x + width - 100 - badgeWidth, y + 3, x + width - 100, y + 13, 0x60204030);
+            context.drawTextWithShadow(textRenderer, Text.literal(badge),
+                    x + width - 100 - badgeWidth + 3, y + 4, 0x9FE0B0);
+        }
         context.drawTextWithShadow(textRenderer, Text.literal(pack.describe()), x + 4, y + 14, 0x8899AA);
 
         int toggleX = x + width - 96;

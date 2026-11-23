@@ -7,7 +7,9 @@ version = project.mod_version
 group = project.maven_group
 
 base {
-    archivesName = project.archives_base_name
+    // Every jar names its loader, so four downloads in one folder are distinguishable
+    // without opening them: -fabric, -quilt, -forge, -neoforge.
+    archivesName = "${project.archives_base_name}-fabric"
 }
 
 repositories {
@@ -79,13 +81,13 @@ jar {
 def quiltJar = tasks.register('quiltJar', Jar) {
     group = 'build'
     description = 'Builds the Quilt Loader variant: the Fabric jar with quilt.mod.json metadata.'
-    archiveBaseName = "${project.base.archivesName.get()}-quilt"
+    archiveBaseName = "${project.archives_base_name}-quilt"
     archiveClassifier = ''
     from(sourceSets.main.output)
     from(sourceSets.client.output)
     from(project.file('src/quilt/resources'))
     from('LICENSE') {
-        rename { "${it}_${project.base.archivesName.get()}-quilt" }
+        rename { "${it}_${project.archives_base_name}-quilt" }
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     exclude 'fabric.mod.json'

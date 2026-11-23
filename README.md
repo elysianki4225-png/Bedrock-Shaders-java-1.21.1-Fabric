@@ -1,16 +1,25 @@
 # Bedrock Shaders — Minecraft Java Edition 1.21.1 (Fabric · Quilt · Forge · NeoForge)
 
+**English** · [简体中文](README.zh_cn.md)
+
 Brings the look of Minecraft **Bedrock Edition's Deferred Rendering Pipeline** to
 **Java Edition 1.21.1** on all four major loaders: the data-driven Bedrock
 lighting/atmosphere/fog/colour-grading system, PBR-style water, Bedrock sky scattering,
 and a post-processing chain (SSAO, bloom, god rays, tone mapping).
 
-| Loader | Jar | Requires |
-| --- | --- | --- |
-| Fabric | [`dist/bedrock-shaders-1.0.0.jar`](dist/bedrock-shaders-1.0.0.jar) | Fabric Loader ≥ 0.16, Fabric API ≥ 0.100 |
-| Quilt | [`dist/bedrock-shaders-quilt-1.0.0.jar`](dist/bedrock-shaders-quilt-1.0.0.jar) | Quilt Loader ≥ 0.30, Fabric API ≥ 0.100 |
-| Forge | [`dist/bedrock-shaders-forge-1.0.0.jar`](dist/bedrock-shaders-forge-1.0.0.jar) | Forge 52.0.28 (1.21.1) |
-| NeoForge | [`dist/bedrock-shaders-neoforge-1.0.0.jar`](dist/bedrock-shaders-neoforge-1.0.0.jar) | NeoForge 21.1.119 (1.21.1) |
+## Download
+
+Each loader has its own jar. Every file name states which loader it is for, so a folder
+holding all four stays unambiguous.
+
+| Loader | Download | File name | Requires | Status |
+| --- | --- | --- | --- | --- |
+| **Fabric** | [**bedrock-shaders-fabric-1.0.0.jar**](dist/bedrock-shaders-fabric-1.0.0.jar) | `bedrock-shaders-fabric-1.0.0.jar` | Fabric Loader ≥ 0.16 + Fabric API ≥ 0.100 | **Primary target** |
+| **Quilt** | [**bedrock-shaders-quilt-1.0.0.jar**](dist/bedrock-shaders-quilt-1.0.0.jar) | `bedrock-shaders-quilt-1.0.0.jar` | Quilt Loader ≥ 0.30 + Fabric API ≥ 0.100 | **Primary target** |
+| Forge | [bedrock-shaders-forge-1.0.0.jar](dist/bedrock-shaders-forge-1.0.0.jar) | `bedrock-shaders-forge-1.0.0.jar` | Forge 52.0.28 (1.21.1) | Maintained, secondary |
+| NeoForge | [bedrock-shaders-neoforge-1.0.0.jar](dist/bedrock-shaders-neoforge-1.0.0.jar) | `bedrock-shaders-neoforge-1.0.0.jar` | NeoForge 21.1.119 (1.21.1) | Maintained, secondary |
+
+Sources jar (all loaders, for reference): [bedrock-shaders-fabric-1.0.0-sources.jar](dist/bedrock-shaders-fabric-1.0.0-sources.jar)
 
 **Fabric and Quilt are the maintained, optimised targets.** The Forge and NeoForge ports
 compile and are updated alongside them, but they are built non-blocking in CI while their
@@ -55,6 +64,27 @@ Then either restart, run `/bedrock import`, or press **Rescan folder** in the pa
    `.minecraft/resourcepacks/bedrock_shaders_<name>/` with a generated `pack.mcmeta`,
 4. enables it in the resource-pack stack (**appended last**, so any pack you placed above
    still wins) and reloads resources — no restart needed.
+
+### Directional tuning for well-known Bedrock packs
+
+Bedrock shader packs are **data only** — they ship fog/lighting/atmosphere/colour-grading
+JSON and no code. So a pack cannot look like its Bedrock original on Java unless the
+renderer reproduces the look its author intended. When an imported pack is recognised as
+belonging to a known family, the renderer applies that family's tuning on top of the pack's
+data:
+
+| Family | Recognised names | What is tuned |
+| --- | --- | --- |
+| **Newb** | Newb X Legacy, Golden Legacy, Glow Legacy, X LMI, Renewed, Reforged, Nostalgia, Dawn, Ale, Dragon Complementary | Haze reaches further, denser and colder underwater fog, warmer (golden) sunlight, slightly lifted saturation and gentler contrast, bloom and caustics nudged up — the signature Newb look |
+| YSS | YSS, YSS Special Edition | Crisper water reflections, slightly stronger sun |
+| Eternity | Eternity | Cinematic: heaver bloom, stronger reflections and god rays, more contrast |
+| Solas / Harmonics | Solas, Harmonics, Harmony | Cleaner, blue-hour leaning, lighter haze |
+| Generic | everything else | The mod's Bedrock-faithful defaults, untouched |
+
+Detection reads the archive name, the pack's manifest name and its description, so
+`Newb-X-Legacy-v1.2.mcpack` and a nameless pack whose manifest says "Newb X LMI" both land
+on the Newb family. The recognised family is shown as a badge in the pack manager, reported
+by `/bedrock debug`, and can be switched off entirely under `Packs → Shader family tuning`.
 
 Per-pack state is tracked in `bedrock-shaders/index.json`, so unchanged archives are not
 re-imported and deleted packs are unregistered. The manager screen can toggle, delete and

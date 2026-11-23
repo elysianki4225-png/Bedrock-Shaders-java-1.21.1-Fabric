@@ -231,6 +231,9 @@ public final class BedrockShadersScreen extends Screen {
                                     rebuild();
                                 })
                         .dimensions(centerX - 100, y, 200, ROW_HEIGHT).build());
+                y += ROW_HEIGHT + ROW_GAP;
+                addDrawableChild(toggle(centerX - 100, y, 200, "bedrock_shaders.option.family_tuning",
+                        config.usePackFamilyTuning, value -> config.usePackFamilyTuning = value));
                 return y + ROW_HEIGHT;
             }
             case SYSTEM -> {

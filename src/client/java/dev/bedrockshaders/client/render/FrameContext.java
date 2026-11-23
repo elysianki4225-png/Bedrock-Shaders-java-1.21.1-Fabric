@@ -72,6 +72,9 @@ public final class FrameContext {
     private float fogEnd;
 
     private String fogId = "minecraft:fog_plains";
+    /** Shader family of the active pack, sampled once per frame. */
+    private dev.bedrockshaders.config.ShaderFamily family =
+            dev.bedrockshaders.config.ShaderFamily.GENERIC;
     private FogSettings fogSettings = new FogSettings();
     private LightingSettings lightingSettings = new LightingSettings();
     private AtmosphereSettings atmosphereSettings = new AtmosphereSettings();
@@ -152,7 +155,17 @@ public final class FrameContext {
             sunIntensity = 0.0F;
             moonIntensity = 0.25F;
         }
+        // Sample the family before colouring: litColors() and the fog window both use it.
+        family = ConfigManager.get().config().usePackFamilyTuning
+                ? PackRegistry.get().activeFamily()
+                : dev.bedrockshaders.config.ShaderFamily.GENERIC;
+
         litColors();
+
+        // Final light strength, scaled by the family's intent (Newb runs a touch brighter).
+        if (family.sunIntensityScale != 1.0F) {
+            sunIntensity = Mth.clamp(sunIntensity * family.sunIntensityScale, 0.0F, 1.0F);
+        }
 
         // Water detection (used by terrain caustics + water waves).
         underwater = snapshot.cameraInWater();
@@ -161,10 +174,14 @@ public final class FrameContext {
         // Fog window in blocks (Bedrock "render" distance_type vs "fixed").
         FogSettings fog = fogSettings;
         float density = Math.max(0.05F, ConfigManager.get().config().fogDensity);
+
+        // Recognised Bedrock shader families ship data, not code, so their look only
+        // survives here if the renderer reproduces it. The Newb family in particular is
+        // known for haze that reaches further and a denser blue underwater view.
         if (underwater && fog.hasWater) {
-            fogStart = fog.waterStart;
-            fogEnd = fog.waterEnd;
-            fogDensity = density * 1.25F;
+            fogStart = fog.waterStart / family.underwaterFogScale;
+            fogEnd = Math.max(fog.waterEnd / family.underwaterFogScale, fogStart + 1.0F);
+            fogDensity = density * 1.25F * family.fogDensityScale;
         } else {
             float distance = viewDistanceBlocks;
             if (fog.hasAir && "render".equals(fog.airDistanceType)) {
@@ -177,11 +194,18 @@ public final class FrameContext {
                 fogStart = distance * 0.92F;
                 fogEnd = distance;
             }
-            fogDensity = density;
+            fogDensity = density * family.fogDensityScale;
             if (rainGradient > 0.01F && fog.hasWeather) {
                 fogStart = Mth.lerp(rainGradient * 0.5F, fogStart, fog.weatherStart * distance);
                 fogEnd = Mth.lerp(rainGradient * 0.5F, fogEnd, Math.max(fog.weatherEnd * distance, fogEnd * 0.5F));
             }
+        }
+
+        // The family's haze reach: packs like Newb deliberately let fog sit further out,
+        // which is what makes their distance depth read differently from vanilla Bedrock.
+        if (family.fogScale != 1.0F && fogEnd > fogStart) {
+            float span = (fogEnd - fogStart) * family.fogScale;
+            fogEnd = fogStart + Math.max(1.0F, span);
         }
 
         // Underwater surface + water column detection.
@@ -205,6 +229,13 @@ public final class FrameContext {
         System.arraycopy(horizon, 0, skyHorizon, 0, 3);
         float[] sun = lightingSettings.sunColor.get(sunAngle, sunColor);
         System.arraycopy(sun, 0, sunColor, 0, 3);
+        if (family.sunIntensityScale != 1.0F) {
+            // These packs warm the light rather than brightening every channel equally:
+            // the red channel gains the most, which is what reads as "golden hour".
+            sunColor[0] = Mth.clamp(sunColor[0] * family.sunIntensityScale, 0.0F, 4.0F);
+            sunColor[1] = Mth.clamp(sunColor[1] * (1.0F + (family.sunIntensityScale - 1.0F) * 0.8F), 0.0F, 4.0F);
+            sunColor[2] = Mth.clamp(sunColor[2] * (1.0F + (family.sunIntensityScale - 1.0F) * 0.5F), 0.0F, 4.0F);
+        }
         float[] moon = lightingSettings.moonColor.get(sunAngle, moonColor);
         System.arraycopy(moon, 0, moonColor, 0, 3);
         float[] airFog = ColorUtil.rgbToLinear(new float[] {
@@ -318,6 +349,9 @@ public final class FrameContext {
     public float fogStart() { return fogStart; }
     public float fogEnd() { return fogEnd; }
     public String fogId() { return fogId; }
+
+    /** Shader family the active pack belongs to (generic when none is recognised). */
+    public dev.bedrockshaders.config.ShaderFamily shaderFamily() { return family; }
 
     /** Java biome id (e.g. {@code minecraft:plains}) used for the water table lookup. */
     public String biomeId() { return biomeId; }
