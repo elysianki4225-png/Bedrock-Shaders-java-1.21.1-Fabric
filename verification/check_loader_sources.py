@@ -18,10 +18,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHARED = ROOT / "loaders" / "common-official" / "src" / "main" / "java"
 
 FABRIC = re.compile(r"\bnet\.fabricmc\b|\bFabricLoader\b|\bFabricClient\b")
-# Yarn-mapped Minecraft packages must not leak either: the shared tree compiles against
-# official names (net.minecraft.client.Minecraft#getInstance is fine, ...#getWindow is not,
-# but any net.minecraft import at all is a smell worth banning outright).
-YARN_ONLY = re.compile(r"\bnet\.minecraft\.client\.util\.InputUtil\b|\bnet\.minecraft\.text\.Text\b")
+# Yarn class names that differ from the official (Mojang) names the shared tree compiles
+# against. Each entry is a Yarn name that must be spelled the official way here.
+YARN_ONLY = re.compile(
+    r"\bCyclingButton\b"          # official: CycleButton
+    r"|\bMinecraftClient\b"       # official: Minecraft
+    r"|\bText\b(?=\s*[.(])"       # official: Component
+    r"|\bnet\.minecraft\.client\.util\.InputUtil\b"
+)
 
 
 def main() -> int:
@@ -33,8 +37,14 @@ def main() -> int:
     files = sorted(SHARED.rglob("*.java"))
     for path in files:
         rel = path.relative_to(ROOT).as_posix()
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        text = path.read_text(encoding="utf-8")
+        # Ignore comments entirely: the javadoc deliberately names the Yarn spelling to
+        # explain the translation, and that must not count as a use.
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        for number, line in enumerate(text.splitlines(), 1):
             code = line.split("//", 1)[0]
+            if line.lstrip().startswith("*"):
+                continue
             for pattern, label in ((FABRIC, "Fabric API"), (YARN_ONLY, "Yarn-only class")):
                 if pattern.search(code):
                     problems.append(f"{rel}:{number}: {label} in the shared source set -> {line.strip()}")
