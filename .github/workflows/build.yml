@@ -125,6 +125,10 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # Both jobs decompile Minecraft through NeoForm/ForgeGradle. Running them at the same
+      # time was fine while they only failed early; now that they get far enough to write
+      # artifacts, serialising them keeps each one inside the runner's memory budget.
+      max-parallel: 1
       matrix:
         include:
           - loader: neoforge
@@ -150,6 +154,16 @@ jobs:
         id: gradle
         continue-on-error: true
         working-directory: loaders/${{ matrix.loader }}
+        env:
+          # NeoForm decompiles and recompiles all of Minecraft. With the default daemon
+          # heap this dies inside createMinecraftArtifacts (mergeMappings / recompile) with
+          # an empty nfrt-problem-report.json, which is what the last three runs showed.
+          GRADLE_OPTS: >-
+            -Dorg.gradle.jvmargs=-Xmx4G
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.parallel=false
+            -Dorg.gradle.workers.max=1
+            -Dfile.encoding=UTF-8
         run: |
           chmod +x ../../gradlew
           ../../gradlew --version > gradle-version.log 2>&1
@@ -186,6 +200,15 @@ jobs:
             echo
             echo "=== every file under build/libs ==="
             find build/libs -maxdepth 2 -printf '%p %s bytes\n' 2>/dev/null | sort
+            echo
+            echo "=== neoform / toolchain problems ==="
+            for f in build/tmp/createMinecraftArtifacts/nfrt-problem-report.json \
+                     build/tmp/createMinecraftArtifacts/*.json; do
+              [ -f "$f" ] || continue
+              echo "--- $f ($(wc -c < "$f") bytes)"
+              head -c 4000 "$f"
+              echo
+            done
             echo
             echo "=== javac errors (with symbol/location lines) ==="
             grep -nE -A3 "error:" build.log | head -120
