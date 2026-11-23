@@ -74,12 +74,13 @@ jar {
 // expanded. Point the sources jar at the processed output instead. The source set still
 // carries the client tree, so the artifact stays a readable reference for all four ports.
 tasks.named('sourcesJar') {
+    // withSourcesJar() packs sourceSets.main.allSource, i.e. the *raw*
+    // src/main/resources, so fabric.mod.json shipped the literal ${version}. Rebuild the
+    // archive contents explicitly: sources for reference, processed metadata for truth.
+    setSource(sourceSets.main.java, sourceSets.client.java)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets.main.output) {
-        include 'fabric.mod.json', 'quilt.mod.json', 'assets/**'
-    }
-    from(sourceSets.client.output) {
-        include '**/*.java'
+        include 'fabric.mod.json'
     }
 }
 
