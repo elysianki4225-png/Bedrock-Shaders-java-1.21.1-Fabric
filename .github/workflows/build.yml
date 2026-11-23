@@ -127,22 +127,27 @@ jobs:
         continue-on-error: true
         working-directory: loaders/${{ matrix.loader }}
         run: |
-          set +e
           chmod +x ../../gradlew
           ../../gradlew --version > gradle-version.log 2>&1
-          echo "gradle --version exit: $?" >> gradle-version.log
-          ../../gradlew build --stacktrace --console=plain > build.log 2>&1
-          echo "build exit: $?" >> build.log
+          status=0
+          ../../gradlew build --stacktrace --console=plain > build.log 2>&1 || status=$?
+          echo "build exit: $status" >> build.log
           echo "=== jars produced ===" >> build.log
           find build -name '*.jar' -printf '%p %s bytes\n' >> build.log 2>&1 || true
           echo "=== first error lines ===" >> build.log
-          grep -nE "error:|FAILURE:|What went wrong|A problem occurred|Could not|Unsupported class|Plugin|not found" build.log | head -40 >> build.log 2>&1 || true
+          grep -nE "error:|FAILURE:|What went wrong|A problem occurred|Could not|Unsupported class|not found" build.log | head -40 >> build.log 2>&1 || true
           tail -c 3000 build.log || true
+          # Propagate the real status. This step is continue-on-error, so the job still
+          # does not gate the branch, but it must report failure: swallowing it made a
+          # broken loader build look green while the locator fell back to a toolchain jar.
+          exit $status
 
       # The sandbox cannot read Actions log blobs, so a failing loader build posts its
       # own diagnostics as an issue: that is the only channel back to the maintainer.
       - name: Publish ${{ matrix.loader }} diagnostics
-        if: steps.gradle.outcome == 'failure'
+        # Runs on any earlier failure in this job: a compile error *or* a build that
+        # produced nothing the locator could publish.
+        if: failure() && !cancelled()
         working-directory: loaders/${{ matrix.loader }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -154,9 +159,13 @@ jobs:
             echo '```'
             head -20 gradle-version.log 2>/dev/null || echo "no gradle-version.log"
             echo '```'
-            echo "### build.log (head, first 250 lines)"
+            echo "### jars in the build tree"
             echo '```'
-            head -250 build.log 2>/dev/null || echo "no build.log"
+            find build -name '*.jar' -printf '%p %s bytes\n' 2>/dev/null | head -40 || echo "no jars"
+            echo '```'
+            echo "### build.log (tail, last 120 lines)"
+            echo '```'
+            tail -120 build.log 2>/dev/null || echo "no build.log"
             echo '```'
           } > /tmp/report.md
           gh issue create --repo $GITHUB_REPOSITORY \
