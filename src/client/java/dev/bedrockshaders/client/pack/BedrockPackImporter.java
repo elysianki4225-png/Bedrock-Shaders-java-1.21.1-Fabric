@@ -130,6 +130,37 @@ public final class BedrockPackImporter {
                 return Result.failure("archive has no rendering data (" + kind.id() + ")", detection);
             }
 
+            // Extension packs see the archive before a single byte is written, and can add or
+            // rewrite data files. This is the only place the public API may touch a pack's
+            // content, and it cannot escape the pack folder (see PackWriter).
+            // String.join throws on a null element and a Bedrock manifest may omit either
+            // field, so the hints are built defensively.
+            String[] hints = {archive.getFileName().toString(),
+                    nullToEmpty(manifest.name()), nullToEmpty(manifest.description())};
+            dev.bedrockshaders.api.PackDescriptor descriptor = new dev.bedrockshaders.api.PackDescriptor(
+                    archive.getFileName().toString(), listStaged(staging));
+            descriptor.setDetectedFamily(detection.familyHint());
+            descriptor.setRenderDragon(detection.renderDragon());
+            descriptor.metadata().put("name", String.valueOf(manifest.name()));
+            descriptor.metadata().put("description", String.valueOf(manifest.description()));
+            descriptor.metadata().put("slug", String.valueOf(manifest.slug()));
+            descriptor.metadata().put("hints", String.join(" | ", hints));
+            dev.bedrockshaders.api.PackDescriptor processed =
+                    dev.bedrockshaders.api.ExtensionRegistry.get().runPreprocessors(descriptor);
+            if (processed == null) {
+                deleteRecursively(staging);
+                return Result.failure("an extension pack vetoed this import"
+                        + (descriptor.vetoReason() == null ? "" : ": " + descriptor.vetoReason()),
+                        detection);
+            }
+            descriptor = processed;
+            // Extension-supplied JSON lands next to the extracted Bedrock data and is picked
+            // up by the existing pack loader on the next scan.
+            if (!descriptor.extraFiles().isEmpty()) {
+                writeExtraFiles(staging, descriptor);
+                counted = count(staging);
+            }
+
             String folder = PackRegistry.GENERATED_PREFIX + sanitise(manifest.slug());
             Path packDir = targetDir.resolve(folder);
             if (Files.isDirectory(packDir)) {
@@ -161,6 +192,8 @@ public final class BedrockPackImporter {
                                 + "pipeline cannot run on Java, only its data half was applied",
                         archive.getFileName(), detection.describe());
             }
+            writeExtensionNotes(packDir, descriptor.descriptionNotes());
+            dev.bedrockshaders.api.ExtensionRegistry.get().fireAfterImport(descriptor, packDir);
             return new Result(true, pack, BedrockPackKind.DEFERRED_DATA, pack.describe(), detection);
         } catch (IOException | RuntimeException e) {
             deleteRecursively(staging);
@@ -175,6 +208,76 @@ public final class BedrockPackImporter {
      *
      * @return true when at least one rendering JSON file was copied
      */
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    /** Relative paths of everything that survived extraction, for the public descriptor. */
+    private static java.util.List<String> listStaged(Path staging) {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        Path assets = staging.resolve("assets");
+        if (!Files.isDirectory(assets)) {
+            return names;
+        }
+        try (var walk = Files.walk(assets)) {
+            walk.filter(Files::isRegularFile).forEach(path ->
+                    names.add(assets.relativize(path).toString().replace(java.io.File.separatorChar, '/')));
+        } catch (IOException | RuntimeException e) {
+            BedrockShadersMod.LOGGER.warn("Could not list staged pack entries", e);
+        }
+        java.util.Collections.sort(names);
+        return names;
+    }
+
+    /**
+     * Records what extensions did to a pack beside the pack itself, so the GUI can show it
+     * and a bug report has the trail without digging through the log.
+     */
+    private static void writeExtensionNotes(Path packDir, java.util.List<String> notes) {
+        if (notes.isEmpty()) {
+            return;
+        }
+        StringBuilder text = new StringBuilder("# extension notes\n");
+        for (String note : notes) {
+            text.append("- ").append(note).append('\n');
+        }
+        try {
+            Files.writeString(packDir.resolve("bedrock_shaders_extension_notes.txt"), text.toString(),
+                    StandardCharsets.UTF_8);
+        } catch (IOException | RuntimeException e) {
+            BedrockShadersMod.LOGGER.warn("Could not write extension notes for {}", packDir, e);
+        }
+    }
+
+    /**
+     * Writes the files an extension preprocessor added, confined to the pack's own data tree.
+     *
+     * <p>{@link dev.bedrockshaders.api.PackDescriptor#addFile(String, String)} already validates
+     * the path, and this repeats the containment check against the staging directory because a
+     * preprocessor is third-party code.</p>
+     */
+    private static void writeExtraFiles(Path staging, dev.bedrockshaders.api.PackDescriptor descriptor) {
+        Path assets = staging.resolve("assets").normalize();
+        for (var entry : descriptor.extraFiles().entrySet()) {
+            try {
+                String relative = entry.getKey();
+                if (relative.startsWith("/") || relative.contains("\\") || relative.contains("..")) {
+                    BedrockShadersMod.LOGGER.warn("Extension file path refused: {}", relative);
+                    continue;
+                }
+                Path target = staging.resolve("assets").resolve(relative).normalize();
+                if (!target.startsWith(assets)) {
+                    BedrockShadersMod.LOGGER.warn("Extension file escaped the pack folder: {}", relative);
+                    continue;
+                }
+                Files.createDirectories(target.getParent());
+                Files.writeString(target, entry.getValue(), StandardCharsets.UTF_8);
+            } catch (IOException | RuntimeException e) {
+                BedrockShadersMod.LOGGER.warn("Extension file could not be written: {}", entry.getKey(), e);
+            }
+        }
+    }
+
     private static boolean extract(Path archive, Path staging, int depth,
                                    RenderDragonSupport.Detection detection,
                                    boolean acceptRenderDragon) throws IOException {

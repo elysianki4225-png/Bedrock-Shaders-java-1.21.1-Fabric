@@ -55,6 +55,10 @@ jobs:
       - name: Test RenderDragon detection
         run: python3 verification/test_renderdragon.py
 
+      # The public extension API is plain Java: its contract is checked without a JDK.
+      - name: Test extension API contract
+        run: python3 verification/test_api.py
+
       # The READMEs are the download page; this checks their links without a build.
       - name: Validate README download links
         run: python3 verification/check_readme_links.py

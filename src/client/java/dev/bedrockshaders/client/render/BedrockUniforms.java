@@ -93,7 +93,10 @@ public final class BedrockUniforms {
         uploaded |= set1(locations, "BedrockWaterWaveStrength", config.waterWaveStrength);
         uploaded |= set1(locations, "BedrockWaterReflection", config.waterReflectionStrength);
         uploaded |= set1(locations, "BedrockWaterRefraction", config.waterRefractionStrength);
-        uploaded |= set1(locations, "BedrockCaustics", config.caustics);
+        // Extension hooks may bias caustics; the bias is additive and floored at zero so an
+        // addon can calm the water but cannot turn caustics into a full-screen flash.
+        uploaded |= set1(locations, "BedrockCaustics",
+                Math.max(0.0F, config.caustics + context.extensionCausticsBias()));
         uploaded |= set2(locations, "BedrockScreenSize", context.framebufferWidth(), context.framebufferHeight());
         uploaded |= set2(locations, "BedrockWaveOffsetA",
                 (context.worldTimeSeconds() * 0.035F) % 6.2831855F,

@@ -31,6 +31,8 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
+import java.io.IOException;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,6 +64,12 @@ public final class BedrockShadersClient implements ClientModInitializer {
         RenderCompat.install(FabricLoader.getInstance()::isModLoaded, modIds);
 
         ConfigManager.get().load();
+
+        // Extension packs load before any pack is imported, so their families are already
+        // known when the first pack is classified. Code addons only; the JSON declarations
+        // arrive with the first resource reload (see ReloadListener).
+        dev.bedrockshaders.api.ExtensionDiscovery.loadServices(
+                BedrockShadersClient.class.getClassLoader());
 
         // Instance folder that behaves like Iris' shaderpacks folder: drop a .mcpack in
         // and it is converted + enabled on this launch.
@@ -238,6 +246,36 @@ public final class BedrockShadersClient implements ClientModInitializer {
             return ID;
         }
 
+        /**
+         * Reads every {@code assets/<ns>/bedrock_shaders/api.json} the loaded packs provide,
+         * so a pack author can register families without writing Java.
+         *
+         * <p>Runs on every resource reload, which includes opening the pack selection screen.
+         * Registration is idempotent by family id, so the noise is a debug-level refusal
+         * rather than a duplicate family.</p>
+         */
+        private static void loadExtensionDeclarations(ResourceManager manager) {
+            try {
+                var found = manager.findResources("bedrock_shaders",
+                        id -> id.getPath().endsWith("api.json"));
+                for (var entry : found.entrySet()) {
+                    try (var stream = entry.getValue().getInputStream()) {
+                        String json = new String(stream.readAllBytes(),
+                                java.nio.charset.StandardCharsets.UTF_8);
+                        dev.bedrockshaders.api.JsonExtensionLoader.load(
+                                entry.getKey().toString(), json);
+                    } catch (IOException | RuntimeException e) {
+                        BedrockShadersMod.LOGGER.warn("Could not read extension declaration {}: {}",
+                                entry.getKey(), e.toString());
+                    }
+                }
+            } catch (RuntimeException e) {
+                // Discovery is a nicety: a resource manager that cannot list must not break
+                // the renderer reload.
+                BedrockShadersMod.LOGGER.warn("Extension discovery skipped: {}", e.toString());
+            }
+        }
+
         @Override
         public void reload(ResourceManager manager) {
             ShaderSources.clearCache();
@@ -251,6 +289,7 @@ public final class BedrockShadersClient implements ClientModInitializer {
                 BedrockShaderPack.ensureGenerated(source, true);
             }
             ImportedPackActivator.invalidate();
+            loadExtensionDeclarations(manager);
             MinecraftClient client = MinecraftClient.getInstance();
             if (client != null && client.world == null) {
                 // Outside a world the pipeline is recreated lazily on the next frame.

@@ -63,6 +63,15 @@ public final class RenderDragonSupport {
             return new Detection(false, 0, 0, List.of(), List.of());
         }
 
+        /**
+         * Family guess for the public API descriptor: the RenderDragon pipeline name when
+         * one was recognised, otherwise {@code generic}. Name-based family detection is the
+         * importer's job; this is only what the archive layout itself reveals.
+         */
+        public String familyHint() {
+            return renderDragon ? "renderdragon" : "generic";
+        }
+
         /** True when the archive is RenderDragon but nothing in it can be imported. */
         public boolean binaryOnly() {
             return renderDragon && importable.isEmpty();

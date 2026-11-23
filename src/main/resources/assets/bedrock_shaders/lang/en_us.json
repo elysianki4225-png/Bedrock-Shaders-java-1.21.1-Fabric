@@ -96,5 +96,9 @@
   "bedrock_shaders.warn.dragon_pack.body": "This pack ships a compiled RenderDragon pipeline. Its shader code cannot run on Java Edition, so only the data half would be imported, and only with experimental support enabled.",
   "bedrock_shaders.warn.dragon_pack.title": "RenderDragon pack",
   "bedrock_shaders.warn.renderdragon.body": "RenderDragon shader packs compile their pipeline to a binary that Java Edition cannot run. No mod can execute it. Enabling this imports only the data half of such a pack (fog, lighting, sky, shadows, colour grading), so its colours and densities apply while its actual shader effects do not. Expect a partial result.",
-  "bedrock_shaders.warn.renderdragon.title": "Experimental feature"
+  "bedrock_shaders.warn.renderdragon.title": "Experimental feature",
+  "bedrock_shaders.api.title": "Extension API v1",
+  "bedrock_shaders.api.none": "No extension packs installed",
+  "bedrock_shaders.api.hint": "Use /bedrock api guide to build one",
+  "bedrock_shaders.api.disabled": "disabled after repeated failures"
 }

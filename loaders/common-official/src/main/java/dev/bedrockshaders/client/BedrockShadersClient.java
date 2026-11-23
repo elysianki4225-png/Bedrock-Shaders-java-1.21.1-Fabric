@@ -77,6 +77,10 @@ public final class BedrockShadersClient {
 
         ConfigManager.get().load();
 
+        // Extension packs (code addons) via the JDK's ServiceLoader: identical on all loaders.
+        dev.bedrockshaders.api.ExtensionDiscovery.loadServices(
+                BedrockShadersClient.class.getClassLoader());
+
         // Instance folder that behaves like Iris' shaderpacks folder: drop a .mcpack in
         // and it is converted + enabled on this launch.
         PackRegistry.get().ensureFolders();

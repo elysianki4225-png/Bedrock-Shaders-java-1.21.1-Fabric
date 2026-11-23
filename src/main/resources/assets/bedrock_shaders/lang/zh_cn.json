@@ -96,5 +96,9 @@
   "bedrock_shaders.warn.dragon_pack.body": "这个包带有编译好的 RenderDragon 管线。它的着色器代码在 Java 版无法运行，因此只能导入数据部分，而且必须先开启实验性支持。",
   "bedrock_shaders.warn.dragon_pack.title": "RenderDragon 光影包",
   "bedrock_shaders.warn.renderdragon.body": "RenderDragon 光影包把管线编译成二进制，Java 版无法运行，任何模组都做不到。开启后只会导入这类包的\"数据部分\"（雾、光照、天空、阴影、调色），所以它的颜色和浓度会生效，但真正的光影效果不会。请预期效果是不完整的。",
-  "bedrock_shaders.warn.renderdragon.title": "实验性功能"
+  "bedrock_shaders.warn.renderdragon.title": "实验性功能",
+  "bedrock_shaders.api.title": "扩展包 API v1",
+  "bedrock_shaders.api.none": "未安装任何扩展包",
+  "bedrock_shaders.api.hint": "使用 /bedrock api guide 查看开发说明",
+  "bedrock_shaders.api.disabled": "因多次报错已被停用"
 }

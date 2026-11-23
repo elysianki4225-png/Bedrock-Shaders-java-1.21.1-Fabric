@@ -170,6 +170,106 @@ Minecraft 1.21.1 通过核心着色器程序 `rendertype_solid`、`rendertype_cu
 副本到 `src/main/resources/assets/bedrock_shaders/bedrockshader/`；Gradle 在 `processResources`
 之前运行它，所以 jar 里不可能出现未同步的 GLSL。
 
+## 扩展包（公开 API v1）
+
+别人可以在这个渲染器上加东西，而不用 fork 它。下面说的全部在 `dev.bedrockshaders.api`
+包里，**每个 jar 都带**，而且只依赖 JDK —— 不依赖 Minecraft、不依赖加载器、不依赖 GL。
+这是有意的：API 因此能跨 Minecraft 版本、跨 Fabric/Forge/NeoForge 保持稳定，也能不开游戏
+就完成测试。
+
+扩展包有两种，而做光影的包作者只需要第二种。
+
+### 数据扩展包 —— 完全不用写 Java
+
+发一个普通资源包，多放一个文件 `assets/<你的命名空间>/bedrock_shaders/api.json`：
+
+```json
+{
+  "api": 1,
+  "id": "aurora_pack",
+  "families": [
+    {
+      "id": "aurora",
+      "name_key": "your.addon.family.aurora",
+      "aliases": ["aurora", "northern lights"],
+      "fog_scale": 1.1,
+      "underwater_fog_scale": 1.3,
+      "bloom_bias": 0.4
+    }
+  ]
+}
+```
+
+这就教会了模组按名字认出你的光影家族并套用它该有的观感。没写的数字一律表示"不改变"
+（倍率是 1.0，偏移是 0），每个值都会被夹紧，整个文件是可选的 —— 写错了只记一行日志然后
+跳过，绝不致命。你声明的家族和内建的 Newb / YSS / Eternity / Solas 待遇完全一样，而且
+**优先于**内建别名匹配，避免内建那一长串别名把你包的名字吃掉。
+
+### 代码扩展包 —— 实现一个接口
+
+依赖本模组，实现 `dev.bedrockshaders.api.BedrockShadersExtension`，然后在
+`META-INF/services/dev.bedrockshaders.api.BedrockShadersExtension` 里写上类名。发现走的是
+JDK 自带的 `ServiceLoader`，三个加载器上行为一致。
+
+```java
+public final class AuroraExtension implements BedrockShadersExtension {
+    @Override public String id() { return "aurora_pack"; }
+    @Override public int apiVersion() { return BedrockShadersApi.API_VERSION; }
+    @Override public String displayName() { return "Aurora Pack"; }
+
+    @Override
+    public void onRegister(ExtensionRegistry registry) {
+        registry.registerFamily(FamilySpec.builder("aurora", "your.addon.family.aurora")
+                .aliases("aurora", "northern lights")
+                .fogScale(1.1F)
+                .underwaterFogScale(1.3F)
+                .build());
+
+        registry.registerFrameHook("aurora_pack", (frame, delta) -> {
+            if (frame.underwater() && frame.biomeId().endsWith("frozen_ocean")) {
+                delta.exposure = 0.9F;
+            }
+            if (frame.nether()) {
+                delta.fogSpan = 1.2F;
+            }
+        });
+    }
+}
+```
+
+完整的扩展面：
+
+| 回调 | 时机 | 能做什么 |
+| --- | --- | --- |
+| `onRegister(ExtensionRegistry)` | 启动时一次 | 注册家族、帧钩子、导入预处理器 |
+| `onConfigChanged(ConfigView)` | 每次保存设置 / 切预设 / 撤销后 | 读取用户的开关、曝光、预设 |
+| `onBeforeImport(PackDescriptor)` | `.mcpack` 写入磁盘之前 | 看条目和元数据，可以 **否决** 导入 |
+| `onAfterImport(PackDescriptor, PackWriter)` | 包目录已生成之后 | 在自己命名空间内写额外文件 |
+| `onDispose()` | 注册表重置 / 关闭时 | 释放自己持有的东西 |
+| `FrameHook.apply(FrameView, TuningDelta)` | 每帧，渲染线程 | 逐帧调整雾、曝光、阳光、泛光… |
+
+`FrameView` 是只读的、已经算好的值：当前包、家族、世界时间、日月强度、降雨、生物群系、
+雾 id、水下 / 下界 / 末地标志、相机坐标、雾区间。
+
+`TuningDelta` 和 `FamilySpec` 都是**乘性 + 夹紧**的 —— 逐帧偏移 `0.5…1.5`，家族倍率
+`0.25…4.0`。扩展没法把画面推爆，两个扩展改同一个字段时是相乘而不是互相覆盖。`PackWriter`
+把写入限制在 `assets/<你的命名空间>/`（外加 `pack.png`），拒绝 `pack.mcmeta` 和
+`assets/minecraft/**`，也拒绝 `..` 穿越 —— 扩展弄不坏包，也弄不坏模组自己的产物。
+
+### 安全与诊断
+
+扩展是第三方代码，就按第三方代码对待：每个回调都包了隔离，报错满五次
+（`ExtensionRegistry.FAILURE_BUDGET`）就在本局游戏里关掉这个扩展并记日志点名，而不是把
+渲染器带走。id 不合法、id 重复、或是按更新版本 API 写的扩展，都会被拒绝并记录原因。
+
+游戏内：
+
+```
+/bedrock api            # 装了什么、注册了什么、哪里出错了
+/bedrock api families   # 内建家族 + 扩展家族
+/bedrock api guide      # 直接在聊天栏打出上面这份说明
+```
+
 ## 验证（不需要 GPU，也不需要装 Minecraft）
 
 ```bash

@@ -195,6 +195,111 @@ instead it:
 `src/main/resources/assets/bedrock_shaders/bedrockshader/`; Gradle runs it before
 `processResources`, so the jar cannot ship un-synced GLSL.
 
+## Extension packs (public API v1)
+
+Other people can build on this renderer without forking it. Everything below lives in
+`dev.bedrockshaders.api`, ships in **every** jar, and depends on nothing but the JDK — no
+Minecraft, no loader, no GL. That is deliberate: the API keeps working across Minecraft
+versions and across Fabric/Forge/NeoForge, and it can be tested without launching a game.
+
+There are two kinds of addon, and a pack author only needs the second one.
+
+### Data addons — no Java at all
+
+Ship a normal resource pack with one extra file, `assets/<your_namespace>/bedrock_shaders/api.json`:
+
+```json
+{
+  "api": 1,
+  "id": "aurora_pack",
+  "families": [
+    {
+      "id": "aurora",
+      "name_key": "your.addon.family.aurora",
+      "aliases": ["aurora", "northern lights"],
+      "fog_scale": 1.1,
+      "underwater_fog_scale": 1.3,
+      "bloom_bias": 0.4
+    }
+  ]
+}
+```
+
+That teaches the mod to recognise your shader family by name and apply its look. Every
+number you leave out means "no change" (1.0 for multipliers, 0 for biases), every value is
+clamped, and the whole file is optional — a broken declaration is logged and skipped, never
+fatal. Families you declare get the same treatment as the built-in Newb/YSS/Eternity/Solas
+ones, and your aliases are matched **before** the built-in ones so a long built-in alias
+list cannot swallow your pack's name.
+
+### Code addons — implement one interface
+
+Add a dependency on this mod, implement `dev.bedrockshaders.api.BedrockShadersExtension`,
+and list the class in `META-INF/services/dev.bedrockshaders.api.BedrockShadersExtension`.
+It is found through the JDK's `ServiceLoader`, which works identically on all three loaders.
+
+```java
+public final class AuroraExtension implements BedrockShadersExtension {
+    @Override public String id() { return "aurora_pack"; }
+    @Override public int apiVersion() { return BedrockShadersApi.API_VERSION; }
+    @Override public String displayName() { return "Aurora Pack"; }
+
+    @Override
+    public void onRegister(ExtensionRegistry registry) {
+        registry.registerFamily(FamilySpec.builder("aurora", "your.addon.family.aurora")
+                .aliases("aurora", "northern lights")
+                .fogScale(1.1F)
+                .underwaterFogScale(1.3F)
+                .build());
+
+        registry.registerFrameHook("aurora_pack", (frame, delta) -> {
+            if (frame.underwater() && frame.biomeId().endsWith("frozen_ocean")) {
+                delta.exposure = 0.9F;
+            }
+            if (frame.nether()) {
+                delta.fogSpan = 1.2F;
+            }
+        });
+    }
+}
+```
+
+The full extension surface:
+
+| Hook | When it runs | What it can do |
+| --- | --- | --- |
+| `onRegister(ExtensionRegistry)` | once, at startup | register families, frame hooks, pack preprocessors |
+| `onConfigChanged(ConfigView)` | after any settings save, preset switch or undo | react to the user's toggles, exposure, preset |
+| `onBeforeImport(PackDescriptor)` | before a `.mcpack` is written | inspect entries and metadata, **veto** the import |
+| `onAfterImport(PackDescriptor, PackWriter)` | after the pack folder exists | write extra files inside your own namespace |
+| `onDispose()` | on registry reset / shutdown | release anything you hold |
+| `FrameHook.apply(FrameView, TuningDelta)` | every frame, render thread | per-frame multipliers for fog, exposure, sun, bloom… |
+
+`FrameView` is read-only and already resolved: active pack, family, world time, sun/moon
+intensity, rain, biome, fog id, underwater/nether/end flags, camera position, fog window.
+
+`TuningDelta` and `FamilySpec` are **multiplicative and clamped** — `0.5…1.5` for per-frame
+deltas, `0.25…4.0` for family scales. An addon cannot blow out the image, and two addons
+touching the same field compose instead of overwriting each other. `PackWriter` confines
+writes to `assets/<your_namespace>/` (plus `pack.png`), refuses `pack.mcmeta` and
+`assets/minecraft/**`, and rejects `..` traversal — an extension cannot corrupt the pack or
+the mod's own output.
+
+### Safety and diagnostics
+
+An addon is third-party code, so it is treated as such: every callback is wrapped, and an
+extension that throws five times (`ExtensionRegistry.FAILURE_BUDGET`) is disabled for the
+rest of the session with a log line naming it, instead of taking the renderer down. A bad id,
+a duplicate id or an addon built for a newer API version is refused with the reason logged.
+
+In game:
+
+```
+/bedrock api            # what is installed, what registered, what failed
+/bedrock api families   # built-in and extension families
+/bedrock api guide      # the same contract as above, in chat
+```
+
 ## Verification (no GPU, no Minecraft install needed)
 
 ```bash
