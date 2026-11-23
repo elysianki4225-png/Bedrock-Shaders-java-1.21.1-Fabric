@@ -151,28 +151,30 @@ jobs:
             --title "${{ matrix.loader }} build failure $GITHUB_RUN_ID" \
             --body-file /tmp/report.md || true
 
+      - name: Locate ${{ matrix.loader }} jar
+        if: success()
+        id: locate
+        working-directory: loaders/${{ matrix.loader }}
+        run: |
+          set -e
+          echo "--- jars in the build tree ---"
+          find build -name '*.jar' -printf '%p %s bytes\n' | sort
+          jar=$(find build -name '*.jar' ! -name '*-sources.jar' -print -quit)
+          if [ -z "$jar" ]; then
+            echo "::error::The ${{ matrix.loader }} build succeeded but produced no jar"
+            exit 1
+          fi
+          echo "jar=$jar" >> "$GITHUB_OUTPUT"
+
       - name: Upload ${{ matrix.loader }} jar
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: bedrock-shaders-${{ matrix.loader }}
-          # upload-artifact resolves paths against the workspace root, not
-          # working-directory, so this must stay repository-relative.
-          path: |
-            loaders/${{ matrix.loader }}/build/libs/*.jar
-            loaders/${{ matrix.loader }}/build/reobfJar/*.jar
-            loaders/${{ matrix.loader }}/build/neoform/*.jar
+          path: loaders/${{ matrix.loader }}/${{ steps.locate.outputs.jar }}
           if-no-files-found: error
 
-      # ForgeGradle (reobf) and ModDevGradle do not always put the final jar in
-      # build/libs, so locate it instead of assuming a path.
-      - name: Verify ${{ matrix.loader }} jar exists
-        if: success()
-        working-directory: loaders/${{ matrix.loader }}
-        run: |
-          set -e
-          find build -maxdepth 4 -name '*.jar' -printf '%p %s bytes\n' | sort
-          test -n "$(find build -name '*.jar' -print -quit)"
+
 
       # Mirror the Fabric job's dist/ publishing so all four jars are downloadable from
       # the repository itself (blob storage is unreachable in the maintainer's sandbox).
