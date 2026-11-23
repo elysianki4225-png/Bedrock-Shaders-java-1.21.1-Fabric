@@ -158,16 +158,21 @@ jobs:
           name: bedrock-shaders-${{ matrix.loader }}
           # upload-artifact resolves paths against the workspace root, not
           # working-directory, so this must stay repository-relative.
-          path: loaders/${{ matrix.loader }}/build/libs/*.jar
-          if-no-files-found: warn
+          path: |
+            loaders/${{ matrix.loader }}/build/libs/*.jar
+            loaders/${{ matrix.loader }}/build/reobfJar/*.jar
+            loaders/${{ matrix.loader }}/build/neoform/*.jar
+          if-no-files-found: error
 
+      # ForgeGradle (reobf) and ModDevGradle do not always put the final jar in
+      # build/libs, so locate it instead of assuming a path.
       - name: Verify ${{ matrix.loader }} jar exists
         if: success()
         working-directory: loaders/${{ matrix.loader }}
         run: |
           set -e
-          ls -l build/libs/
-          ls build/libs/*.jar >/dev/null
+          find build -maxdepth 4 -name '*.jar' -printf '%p %s bytes\n' | sort
+          test -n "$(find build -name '*.jar' -print -quit)"
 
       # Mirror the Fabric job's dist/ publishing so all four jars are downloadable from
       # the repository itself (blob storage is unreachable in the maintainer's sandbox).
@@ -177,10 +182,11 @@ jobs:
         run: |
           set -e
           mkdir -p ../../dist
-          # This step runs inside loaders/<loader>, so the jar is local and dist/ is
-          # two levels up.
-          cp build/libs/*.jar ../../dist/ 2>/dev/null || {
-            echo "no jar produced"; exit 1; }
+          # This step runs inside loaders/<loader>, so dist/ is two levels up. Find the
+          # jar rather than assuming the toolchain's output directory.
+          jar=$(find build -name '*.jar' ! -name '*-sources.jar' -print -quit)
+          if [ -z "$jar" ]; then echo "no jar produced"; exit 1; fi
+          cp "$jar" ../../dist/
           cd ../..
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
