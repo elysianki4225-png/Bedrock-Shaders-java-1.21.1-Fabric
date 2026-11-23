@@ -166,6 +166,9 @@ jobs:
             echo "=== every file under build/libs ==="
             find build/libs -maxdepth 2 -printf '%p %s bytes\n' 2>/dev/null | sort
             echo
+            echo "=== javac errors (with symbol/location lines) ==="
+            grep -nE -A3 "error:" build.log | head -120
+            echo
             echo "=== build.log tail ==="
             tail -60 build.log
           } > build-summary.txt 2>&1
@@ -258,6 +261,10 @@ jobs:
           {
             echo "workflow run: $GITHUB_RUN_ID"
             echo
+            echo "### javac errors with context"
+            echo '```'
+            grep -nE "error:|symbol:|location:" build.log | head -80 || true
+            echo '```'
             echo "### build summary"
             echo '```'
             cat build-summary.txt 2>/dev/null || echo "no build-summary.txt"
