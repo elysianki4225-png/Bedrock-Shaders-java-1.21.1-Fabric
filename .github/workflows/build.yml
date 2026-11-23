@@ -180,36 +180,6 @@ jobs:
             loaders/${{ matrix.loader }}/build-summary.txt
             loaders/${{ matrix.loader }}/build.log
 
-      # The sandbox cannot read Actions log blobs, so a failing loader build posts its
-      # own diagnostics as an issue: that is the only channel back to the maintainer.
-      - name: Publish ${{ matrix.loader }} diagnostics
-        # Runs on any earlier failure in this job: a compile error *or* a build that
-        # produced nothing the locator could publish.
-        if: failure() && !cancelled()
-        working-directory: loaders/${{ matrix.loader }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          {
-            echo "workflow run: $GITHUB_RUN_ID"
-            echo
-            echo "### gradle --version"
-            echo '```'
-            head -20 gradle-version.log 2>/dev/null || echo "no gradle-version.log"
-            echo '```'
-            echo "### jars in the build tree"
-            echo '```'
-            find build -name '*.jar' -printf '%p %s bytes\n' 2>/dev/null | head -40 || echo "no jars"
-            echo '```'
-            echo "### build.log (tail, last 120 lines)"
-            echo '```'
-            tail -120 build.log 2>/dev/null || echo "no build.log"
-            echo '```'
-          } > /tmp/report.md
-          gh issue create --repo $GITHUB_REPOSITORY \
-            --title "${{ matrix.loader }} build failure $GITHUB_RUN_ID" \
-            --body-file /tmp/report.md || true
-
       - name: Locate ${{ matrix.loader }} jar
         if: success()
         id: locate
@@ -272,3 +242,29 @@ jobs:
           git commit -m "ci: publish ${{ matrix.loader }} jar [skip ci]"
           git pull --rebase --autostash
           git push
+
+      # Actions logs and artifacts are both unreachable from the maintainer's sandbox, so a
+      # failing loader job reports through an issue: that is the only readable channel.
+      # This step sits last so it also covers a build that produced nothing publishable.
+      - name: Publish ${{ matrix.loader }} diagnostics
+        if: failure() && !cancelled()
+        working-directory: loaders/${{ matrix.loader }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "workflow run: $GITHUB_RUN_ID"
+            echo
+            echo "### build summary"
+            echo '```'
+            cat build-summary.txt 2>/dev/null || echo "no build-summary.txt"
+            echo '```'
+            echo "### every file produced under build/"
+            echo '```'
+            find build -type f -printf '%p %s bytes\n' 2>/dev/null | sort | head -60 || true
+            echo '```'
+          } > /tmp/report.md
+          gh issue create --repo $GITHUB_REPOSITORY \
+            --title "${{ matrix.loader }} build failure $GITHUB_RUN_ID" \
+            --body-file /tmp/report.md || true
+
