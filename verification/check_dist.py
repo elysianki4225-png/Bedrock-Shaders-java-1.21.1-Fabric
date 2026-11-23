@@ -75,6 +75,21 @@ def main() -> int:
         if loader not in seen:
             problems.append(f"dist/ has no -{loader}- jar")
 
+    # The sources artifact is the reference for the other three ports: it must actually
+    # contain sources, and its metadata must not be a template. Both have regressed before.
+    sources = sorted(DIST.glob("*-sources.jar"))
+    if not sources:
+        notes.append("dist/ has no sources jar")
+    for jar in sources:
+        with zipfile.ZipFile(jar) as zf:
+            entries = zf.namelist()
+            count = sum(1 for e in entries if e.endswith(".java"))
+            if count == 0:
+                problems.append(f"{jar.name}: contains no .java sources")
+            for entry in entries:
+                if entry.endswith(".json") and "${" in zf.read(entry).decode("utf-8", "replace"):
+                    problems.append(f"{jar.name}: {entry} has an unexpanded placeholder")
+
     print(f"dist/: {len(jars)} jar(s) -> {', '.join(sorted(seen))}")
     for note in notes:
         print(f"note: {note}")
