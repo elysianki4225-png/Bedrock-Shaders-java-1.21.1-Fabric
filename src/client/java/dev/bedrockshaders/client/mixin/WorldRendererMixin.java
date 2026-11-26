@@ -18,8 +18,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Hooks the world pass: Bedrock sky replaces vanilla's after the vanilla sky has
- * been drawn, and the finished frame is captured for the post-processing stack.
+ * Hooks the world pass: Bedrock sky replaces vanilla's after the vanilla sky has been
+ * drawn, and the post stack runs at the end of the world pass — <b>before</b> the HUD.
+ *
+ * <p>Compositing after the HUD (in {@code GameRenderer.render}) blitted a full-screen
+ * image that had been built from the world only, erasing the hotbar, chat and every
+ * other screen. The world pass is the last moment where "everything on screen is the
+ * world" is true, so that is where the effects belong.</p>
  */
 @Mixin(WorldRenderer.class)
 public abstract class WorldRendererMixin {
@@ -64,5 +69,8 @@ public abstract class WorldRendererMixin {
             return;
         }
         pipeline.captureScene(context);
+        // Composite immediately: the scene target was just captured, so the post stack
+        // works on this frame's world and the result lands before the HUD is drawn.
+        pipeline.renderEffects(context);
     }
 }

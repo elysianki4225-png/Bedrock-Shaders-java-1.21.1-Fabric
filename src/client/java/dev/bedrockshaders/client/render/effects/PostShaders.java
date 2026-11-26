@@ -185,11 +185,20 @@ public final class PostShaders {
 
                     color = color * Gain + Offset;
                     color = (color - 0.5) * Contrast + 0.5;
+
+                    // Tonemap while still linear, then encode for display. Doing the
+                    // transfer function here - once, at the very end - is what makes the
+                    // image correct: the core shaders emit linear radiance and nothing
+                    // else in the chain applies a curve.
+                    color = tonemap(color);
+                    color = pow(clamp(color, 0.0, 1.0), vec3(1.0 / 2.2));
+
+                    // Gamma above is Bedrock's per-pack midtone curve, applied after the
+                    // display encode so a pack can still tint midtones.
                     color = pow(clamp(color, 0.0, 1.0), Gamma);
+
                     float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
                     color = mix(vec3(luma), color, Saturation);
-
-                    color = tonemap(color);
 
                     float vignette = smoothstep(1.2, 0.35, length(texCoord - 0.5) * 2.0);
                     color *= mix(1.0, vignette, Vignette);

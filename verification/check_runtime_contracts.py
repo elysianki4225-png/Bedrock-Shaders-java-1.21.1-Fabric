@@ -149,11 +149,72 @@ def check_core_profile_requested() -> None:
                  f"1.21.1 renderers assume core")
 
 
+def check_shadersrc_in_sync() -> None:
+    """`shadersrc/` is the source of truth; the packaged copies are generated from it.
+
+    Gradle runs `sync_shaders.mjs` before `processResources`, so editing
+    `assets/bedrock_shaders/bedrockshader/` directly looks like it works locally and is
+    then silently reverted at build time. That is exactly the trap this catches.
+    """
+    src_root = ROOT / "shadersrc"
+    out_root = SHADER_ROOT / "bedrockshader"
+    if not src_root.is_dir() or not out_root.is_dir():
+        fail("shadersrc/ or the packaged shader tree is missing")
+        return
+
+    for name in ("bedrock_terrain.fsh", "bedrock_entity.fsh", "bedrock_translucent.fsh"):
+        source = src_root / "core" / name
+        packaged = out_root / "core" / name
+        if not source.is_file() or not packaged.is_file():
+            fail(f"missing core shader {name}")
+            continue
+        # The packaged file is the source plus flattened imports; the body must match.
+        src_body = strip_comments(source.read_text(encoding="utf-8"))
+        out_body = strip_comments(packaged.read_text(encoding="utf-8"))
+        src_body = re.sub(r"^#include\s.*$", "", src_body, flags=re.M)
+        out_body = re.sub(r"^#moj_import\s.*$", "", out_body, flags=re.M)
+        strip = lambda t: [l.strip() for l in t.splitlines() if l.strip()]
+        if strip(src_body) != strip(out_body):
+            fail(f"{name}: packaged copy differs from shadersrc - run "
+                 f"`node verification/sync_shaders.mjs` (Gradle would revert your edit)")
+
+    # Nothing may sample the scene/depth targets: the uniforms are declared nowhere the
+    # mod binds, so a sampler left behind reads the block texture on unit 0.
+    for include in out_root.rglob("*.glsl"):
+        text = strip_comments(include.read_text(encoding="utf-8"))
+        for sampler in ("BedrockSceneSampler", "BedrockDepthSampler"):
+            if sampler in text:
+                fail(f"{include.name}: references {sampler}, which nothing ever binds")
+
+
+def check_single_transfer_function() -> None:
+    """Exactly one place may encode to display space, or the image double-gammas."""
+    core = SHADER_ROOT / "bedrockshader" / "core"
+    encoded = []
+    for shader in sorted(core.glob("*.fsh")):
+        text = strip_comments(shader.read_text(encoding="utf-8"))
+        # Nested parentheses (pow(vec3(...), ...)) defeat [^)]*, so match on the exponent
+        # literal plus the pow that wraps it instead.
+        if re.search(r"pow\s*\(.*?1\.0\s*/\s*2\.2", text):
+            encoded.append(shader.name)
+    if encoded:
+        fail(f"{', '.join(encoded)}: encodes to display space; the composite pass owns the "
+             f"transfer curve, so doing it here double-gammas the whole image")
+
+    post = ROOT / "src/client/java/dev/bedrockshaders/client/render/effects/PostShaders.java"
+    composite = strip_comments(post.read_text(encoding="utf-8"))
+    if "1.0 / 2.2" not in composite:
+        fail("the composite pass no longer encodes to display space; the image will be "
+             "rendered linear and look crushed")
+
+
 def main() -> int:
     check_no_fixed_function()
     check_shader_paths()
     check_import_targets()
     check_core_profile_requested()
+    check_shadersrc_in_sync()
+    check_single_transfer_function()
 
     print(f"runtime contracts: {len(FIXED_FUNCTION)} fixed-function names banned, "
           f"{len(problems)} problem(s)")

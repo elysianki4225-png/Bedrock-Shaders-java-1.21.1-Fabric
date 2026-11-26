@@ -65,5 +65,9 @@ public abstract class LevelRendererMixin {
             return;
         }
         pipeline.captureScene(context);
+        // Composite immediately: the scene target was just captured, so the post stack
+        // works on this frame's world and the result lands before the HUD is drawn.
+        // Compositing after the HUD would blit a world-only image over the hotbar.
+        pipeline.renderEffects(context);
     }
 }
