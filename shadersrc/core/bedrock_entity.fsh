@@ -36,5 +36,6 @@ void main() {
     }
 
     lit = bs_apply_fog(lit, vertexDistance);
-    fragColor = vec4(pow(bs_saturate(lit), vec3(1.0 / 2.2)), color.a);
+    // Linear output; see the note in bedrock_terrain.fsh.
+    fragColor = vec4(max(lit, vec3(0.0)), color.a);
 }

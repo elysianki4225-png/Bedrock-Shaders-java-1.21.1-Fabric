@@ -32,5 +32,7 @@ void main() {
     }
 
     lit = bs_apply_fog(lit, vertexDistance);
-    fragColor = vec4(pow(bs_saturate(lit), vec3(1.0 / 2.2)) * ColorModulator.a, texel.a * vertexColor.a);
+    // Linear output on purpose: the composite pass owns the transfer curve. Encoding
+    // here as well produced a doubly gamma-corrected, washed-out image.
+    fragColor = vec4(max(lit, vec3(0.0)) * ColorModulator.a, texel.a * vertexColor.a);
 }

@@ -6,8 +6,10 @@
 //  shader applies Bedrock water reflections only to up-facing surfaces.
 // ---------------------------------------------------------------------------
 
-uniform sampler2D BedrockSceneSampler;
-uniform sampler2D BedrockDepthSampler;
+// No scene or depth samplers here on purpose. They were declared for a screen-space
+// reflection march that nothing ever called, and BedrockUniforms never bound them, so
+// calling it would have sampled whatever happened to be on unit 0 - usually the block
+// texture itself. That is where the black tile patches on the water came from.
 uniform vec2 BedrockWaveOffsetA;
 uniform vec2 BedrockWaveOffsetB;
 uniform vec3 BedrockSunColorLinear;
@@ -33,36 +35,6 @@ vec2 bs_water_wave(vec2 worldXZ) {
 vec3 bs_water_normal(vec3 worldPos, vec3 flatNormal) {
     vec2 slope = bs_water_wave(worldPos.xz);
     return normalize(mat3(BedrockInvViewMat) * (flatNormal + vec3(slope.x, 0.0, slope.y)));
-}
-
-vec3 bs_reconstruct_view(float depthValue, vec2 uv) {
-    vec4 ndc = vec4(uv * 2.0 - 1.0, depthValue * 2.0 - 1.0, 1.0);
-    vec4 view = BedrockProjectionInv * ndc;
-    return view.xyz / view.w;
-}
-
-// Cheap screen-space reflection march against the opaque scene depth buffer.
-float bs_reflection_march(vec3 eyeWorld, vec3 reflectDir, float maxDistance) {
-    float stepSize = maxDistance / 12.0;
-    vec3 pos = eyeWorld;
-    for (int i = 0; i < 12; i++) {
-        pos += reflectDir * stepSize;
-        vec4 clip = ProjMat * (BedrockViewMat * vec4(pos, 1.0));
-        if (clip.w <= 0.0) {
-            return 0.0;
-        }
-        vec2 uv = (clip.xy / clip.w) * 0.5 + 0.5;
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-            return 0.0;
-        }
-        float sceneDepth = texture(BedrockDepthSampler, uv).r;
-        vec3 sceneView = bs_reconstruct_view(sceneDepth, uv);
-        vec3 sampleView = (BedrockViewMat * vec4(pos, 1.0)).xyz;
-        if (abs(sampleView.z - sceneView.z) < 0.4) {
-            return smoothstep(0.0, 0.12, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)));
-        }
-    }
-    return 0.0;
 }
 
 float bs_water_caustics(vec2 worldXZ) {

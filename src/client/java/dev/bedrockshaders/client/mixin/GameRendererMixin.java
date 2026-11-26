@@ -39,15 +39,13 @@ public abstract class GameRendererMixin {
 
     @Inject(method = "render(Lnet/minecraft/client/render/RenderTickCounter;Z)V", at = @At("TAIL"))
     private void bedrockShaders$afterFrame(RenderTickCounter tickCounter, boolean tick, CallbackInfo ci) {
-        MinecraftClient client = MinecraftClient.getInstance();
         FrameContext context = FrameContext.get();
-        BedrockPipeline pipeline = BedrockPipeline.get();
         if (!context.isActive()) {
             return;
         }
-        if (client.world != null && pipeline.isReady() && pipeline.wantsEffects()) {
-            pipeline.renderEffects(context);
-        }
+        // The post stack already ran at the end of the world pass. Doing it here would
+        // blit a world-only image over the HUD that was just drawn, which is exactly the
+        // "UI disappeared" bug. Only the frame bookkeeping happens here.
         context.endFrame();
     }
 
