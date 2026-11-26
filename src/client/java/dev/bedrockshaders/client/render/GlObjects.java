@@ -115,14 +115,21 @@ public final class GlObjects {
         GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
-    /** Enables the state a fullscreen fragment pass needs and nothing more. */
+    /**
+     * Enables the state a fullscreen fragment pass needs and nothing more.
+     *
+     * <p>Deliberately no matrix setup: {@code ScreenQuad} emits clip-space positions and
+     * binds its own VAO, so nothing here touches the fixed-function matrix stack. That
+     * matters more than it sounds — {@code glMatrixMode} was removed in the core profile
+     * that 1.21.1 runs under, and calling it does not throw a Java exception, it aborts
+     * the whole JVM via an LWJGL function-pointer check.</p>
+     */
     public static void beginFragmentPass() {
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDepthMask(false);
         GL11.glDisable(GL11.GL_CULL_FACE);
         GL11.glDisable(GL11.GL_BLEND);
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
     }
 
 }

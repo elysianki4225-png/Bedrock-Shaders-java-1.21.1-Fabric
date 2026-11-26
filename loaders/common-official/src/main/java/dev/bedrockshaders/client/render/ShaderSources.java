@@ -44,7 +44,13 @@ public final class ShaderSources {
         return flattened;
     }
 
-    private static String readRaw(ResourceSource manager, String path) {
+    private static String readRaw(ResourceSource manager, String relative) {
+        // Every read is relative to this mod's own asset namespace, so ROOT has to be
+        // applied here rather than at each call site. It is not: without it the lookup asks
+        // for bedrock_shaders:core/x.vsh while the jar ships
+        // assets/bedrock_shaders/bedrockshader/core/x.vsh, and every resource reload logs
+        // "Missing Bedrock shader source" and then fails to generate the runtime pack.
+        String path = path(relative);
         InputStream stream = manager.open(path);
         if (stream == null) {
             throw new IllegalStateException("Missing Bedrock shader source " + path);

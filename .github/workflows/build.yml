@@ -48,6 +48,11 @@ jobs:
       - name: Validate runtime shader pack contract
         run: python3 verification/validate_pack.py
 
+      # Two shipped crashes were invisible to every shape check: a removed-in-core-profile
+      # GL call that aborts the JVM, and shader lookups that missed the file in the jar.
+      - name: Check runtime contracts (core profile + asset paths)
+        run: python3 verification/check_runtime_contracts.py
+
       - name: Test .mcpack importer + localisation
         run: python3 verification/test_importer.py
 
